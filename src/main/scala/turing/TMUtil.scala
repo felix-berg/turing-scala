@@ -19,6 +19,9 @@ object TMUtil {
     }
   }
 
+  def combinable[Q, A](m1: TuringMachine[Q, A], m2: TuringMachine[Q, A]): Boolean =
+    m1.transitions.keySet.intersect(m2.transitions.keySet).isEmpty
+
   def combinable[Q, A](m1: MultiMachine[Q, A], m2: MultiMachine[Q, A]): Boolean =
     valid(m1) && valid(m2) &&
       numTapes(m1) == numTapes(m2) &&
@@ -45,5 +48,4 @@ object TMUtil {
 
     (mm1, mm2, mm3)
   }
-
 }

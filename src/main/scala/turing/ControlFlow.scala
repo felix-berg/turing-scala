@@ -49,6 +49,49 @@ object ControlFlow {
     })
   }
 
+  // insert the TM `child` into `parent`, such that 
+  //  - each transition `q` -> `toChild` in `parent` becomes `q` -> `child.init`
+  //  - each transition `q` -> `ha` in `child` becomes `q` -> `childAccept`
+  //  - each transition `q` -> `hr` in `child` becomes `q` -> `childReject`
+  def insertMachine[Q, A](parent: TuringMachine[Q, A], child: TuringMachine[Q, A], 
+                          toChild: State[Q], childAccept: State[Q], childReject: State[Q]): TuringMachine[Q, A] = {
+    require(combinable(parent, child))
+
+    TuringMachine(parent.init, parent.transitions.map {
+      case (q1, s1) -> (q2, s2, dir) if q2 == toChild =>
+        (q1, s1) -> (child.init, s2, dir)
+      case t => t
+    } ++ child.transitions.map {
+      case (q, s1) -> (Accept, s2, dir) =>
+        (q, s1) -> (childAccept, s2, dir)
+      case (q, s1) -> (Reject, s2, dir) =>
+        (q, s1) -> (childReject, s2, dir)
+      case t => t
+    })
+  }
+
+  // insert the TM `child` into `parent`, such that 
+  //  - each transition `q` -> `toChild` in `parent` becomes `q` -> `child.init`
+  //  - each transition `q` -> `ha` in `child` becomes `q` -> `childAccept`
+  //  - each transition `q` -> `hr` in `child` becomes `q` -> `childReject`
+  def insertMachine[Q, A](parent: MultiMachine[Q, A], child: MultiMachine[Q, A], 
+                          toChild: State[Q], childAccept: State[Q], childReject: State[Q]): MultiMachine[Q, A] = {
+    require(combinable(parent, child))
+
+    val (par, chi) = ensureTapesMatch(parent, child)
+    MultiMachine(par.init, par.transitions.map {
+      case (q1, ss1) -> (q2, ss2, dir) if q2 == toChild =>
+        (q1, ss1) -> (chi.init, ss2, dir)
+      case t => t
+    } ++ chi.transitions.map {
+      case (q1, ss1) -> (Accept, ss2, dir) =>
+        (q1, ss1) -> (childAccept, ss2, dir)
+      case (q1, ss1) -> (Reject, ss2, dir) => 
+        (q1, ss1) -> (childReject, ss2, dir)
+      case t => t
+    })
+  }
+
   def nextBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
     val (q0, q1) = (NonHalt(next()), NonHalt(next()))
     val table = symbols.map(s => Alph(s))
@@ -62,16 +105,6 @@ object ControlFlow {
     TuringMachine(q0, table)
   }
 
-  def prevBlank[Int, A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
-    val (q0, q1) = (NonHalt(next()), NonHalt(next()))
-    val table = symbols.map(s => Alph(s))
-      .foldLeft[TransTable[Int, A]](Map())((tt, s) => tt +
-        ((q0, s) -> (q1, s, Left)) +
-        ((q1, s) -> (q1, s, Left))
-      )
-      + ((q0, Blank) -> (q1, Blank, Left))
-      + ((q1, Blank) -> (Accept, Blank, Stay))
-
-    TuringMachine(q0, table)
-  }
+  def prevBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = 
+    TMManip.mirror(nextBlank(symbols, next))
 }

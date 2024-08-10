@@ -2,6 +2,7 @@ package turing
 
 import scala.annotation.tailrec
 import TuringMachine._
+import scala.util.Random
 object Main {
   @tailrec
   def runConfiguration[Q, A](machine: TuringMachine[Q, A], conf: Configuration[Q, A]): Configuration[Q, A] =
@@ -19,21 +20,37 @@ object Main {
     runConfiguration(machine, Configuration[Q, A](Nil, machine.init, Blank :: input))
 
   @tailrec
-  def printRun[Q, A](m: TuringMachine[Q, A], conf: Configuration[Q, A], delayms: Int): Configuration[Q, A] = {
+  def printRunConfiguration[Q, A](m: TuringMachine[Q, A], conf: Configuration[Q, A], delayms: Int): Configuration[Q, A] = {
     println(conf)
     Thread.sleep(delayms)
 
     if (conf.state == Accept || conf.state == Reject) conf
-    else printRun(m, step(m, conf), delayms)
+    else printRunConfiguration(m, step(m, conf), delayms)
   }
 
   @tailrec
-  def printRun[Q, A](m: MultiMachine[Q, A], conf: MultiConfig[Q, A], delayms: Int): MultiConfig[Q, A] = {
+  def printRunConfiguration[Q, A](m: MultiMachine[Q, A], conf: MultiConfig[Q, A], delayms: Int): MultiConfig[Q, A] = {
     println(conf)
     Thread.sleep(delayms)
 
     if (conf.state == Accept || conf.state == Reject) conf
-    else printRun(m, step(m, conf), delayms)
+    else printRunConfiguration(m, step(m, conf), delayms)
+  }
+
+  def printRun[Q, A](m: TuringMachine[Q, A], input: List[TapeAlph[A]], delayms: Int): Configuration[Q, A] =
+    printRunConfiguration(m, Configuration(Nil, m.init, Blank :: input), delayms)
+
+  class DefaultNext {
+    var n = -1
+    def thing(): Int = {
+      n += 1;
+      n
+    }
+  }
+  
+  private def newNext(): () => Int = {
+    val n = new DefaultNext
+    () => { n.thing() }
   }
 
   private def testEqual(): Unit = {
@@ -92,8 +109,11 @@ object Main {
     }
   }
 
+  def randomStringFromTapeSymbols[A](n: Int, arr: Array[TapeAlph[A]]): List[TapeAlph[A]] = 
+    if (n == 0) Nil else arr(scala.util.Random.nextInt(arr.length)) :: randomStringFromTapeSymbols(n - 1, arr)
+
   def randomString[A](n: Int, arr: Array[A]): List[TapeAlph[A]] =
-    if (n == 0) Nil else Alph(arr(scala.util.Random.nextInt(arr.length))) :: randomString(n - 1, arr)
+    randomStringFromTapeSymbols(n, arr.map(s => Alph(s)))
 
   def testCopy(): Unit = {
     val set = ('a' to 'z').toSet
@@ -256,7 +276,7 @@ object Main {
 
       val start = MultiConfig[Int, Char](List(Nil, Nil, Nil, Nil), machine.init, List(Blank :: toBin(n), Blank :: toBin(m), Nil, Nil))
       val end = runConfiguration(machine, start).collapse
-//      val end = printRun(machine, start, 100).collapse
+      // val end = printRun(machine, start, 100).collapse
 
       assert(end.state == Accept)
       assert(end.lefts.forall(l => l == Nil))
@@ -266,13 +286,15 @@ object Main {
 
   def dumbAdd(): Unit = {
     val next = {
-      var n = 0
+      var n = -1
       () => {
         n += 1; n
       }
     }
+
     
     val machine = Machines.Numbers.add('1', next)
+
     for (i <- 0 to 12) {
       val max = Math.pow(2, i).toInt
       val m = scala.util.Random.nextInt(max)
@@ -282,16 +304,269 @@ object Main {
       val sm = (0 until m).map(_ => Alph('1')).toList
 
       val input = Blank :: sn ++ (Blank :: sm)
-      val conf = run(machine, input).collapse
+      val bconf = Configuration(Nil, machine.init, input)
+      val conf = runConfiguration(machine, bconf).collapse
 
       val expected = collapseTape(Blank :: (0 until (m + n)).map(_ => Alph('1')).toList)
-      assert(conf.state == Accept)
-      assert(conf.left == Nil)
-      assert(conf.right == expected, s"${conf.right} != $expected (m = $m, n = $n)")
+      assert(conf.state == Accept, s"non-accepted state")
+      assert(conf.left == Nil, s"left is non-empty")
+      assert(conf.right == expected, s"${conf.right} != $expected (m = $m, n = $n, input = $input)")
+    }
+  }
+
+  def dumbSub(): Unit = {
+    val next = {
+      var n = -1
+      () => {
+        n += 1; n
+      }
+    }
+
+    
+    val machine = Machines.Numbers.sub('1', '#', next)
+
+    for (i <- 0 to 12) {
+      val max = Math.pow(2, i).toInt
+      val n = scala.util.Random.nextInt(max)
+      val m = scala.util.Random.nextInt(max - n) + n
+      assert(m >= n, s"bug in test,bug in test,  $m < $n")
+      
+      val sn = (0 until n).map(_ => Alph('1')).toList
+      val sm = (0 until m).map(_ => Alph('1')).toList
+
+      val input = Blank :: sm ++ (Blank :: sn)
+      val bconf = Configuration(Nil, machine.init, input)
+      val conf = runConfiguration(machine, bconf).collapse
+
+      val expected = collapseTape(Blank :: (0 until (m - n)).map(_ => Alph('1')).toList)
+      assert(conf.state == Accept, s"non-accepted state")
+      assert(conf.left == Nil, s"left is non-empty")
+      assert(conf.right == expected, s"${conf.right} != $expected (m = $m, n = $n, input = $input)")
+    }
+  }
+
+  private def testMachine[Q, A](machine: TuringMachine[Q, A], start: Configuration[Q, A], expected: Configuration[Q, A]): Unit = {
+    val conf = runConfiguration(machine, start).collapse
+    assert(conf == expected.collapse,
+      s"""| testMachine failed:
+          | expected = ${expected.collapse},
+          | got      = $conf""".stripMargin)
+  }
+
+  private def testMachine[Q, A](machine: TuringMachine[Q, A], left: List[TapeAlph[A]], right: List[TapeAlph[A]], expleft: List[TapeAlph[A]], expright: List[TapeAlph[A]], finishState: State[Q] = Accept): Unit = {
+    testMachine(machine, Configuration(left, machine.init, right), Configuration(expleft, finishState, expright))
+  }
+
+  def testDelBack(): Unit = {
+    val machine = Machines.Numbers.MulImpl.delBack('1', newNext())
+    val ones = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
+    val garbage = randomString(102, ('1' to 'z').toArray)
+
+    // #1111111Δgarbage
+    //         ^
+    val left = (Alph('#') :: ones).reverse
+    // #111111ΔΔgarbage
+    //        ^
+    val right = Blank :: garbage
+
+    val expleft = (Alph('#') :: ones.take(ones.length - 1)).reverse
+    val expright = Blank :: Blank :: garbage
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testInit(): Unit = {
+    val next = newNext()
+
+    val machine = Machines.Numbers.MulImpl.init('1', '#', next)
+    val ones1 = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
+    val ones2 = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
+
+    val left = Nil 
+    val right = (Blank :: ones1) ++ List(Blank) ++ ones2
+
+    val expleft = (Alph('#') :: ones1.tail).reverse
+    val expright = List(Blank, Blank) ++ ones2 ++ List(Alph('#'))
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+
+  def testEmptyBehind(): Unit = {
+    val next = newNext()
+
+    val machine = Machines.Numbers.MulImpl.emptyBehind('1', '#', next)
+    val garbage = randomString(Random.nextInt(100), ('1' to 'z').toArray)
+    val blanks = (0 to Random.nextInt(50)).map(_ => Blank).toList
+
+    { // false case
+      val ones = (0 to Random.nextInt(50)).map(_ => Alph('1')).toList
+      val left = (Alph('#') :: ones).reverse
+      val right = blanks ++ garbage
+      testMachine(machine, left, right, left, right, Reject)
+    }
+    { // true case
+      val left = List(Alph('#'))
+      val right = blanks ++ garbage
+      testMachine(machine, left, right, left, right, Accept)
+    }
+  }
+
+  def testAppendSpecial(): Unit = {
+    val next = newNext()
+    val symbols = (0.toChar to 255.toChar).toSet - '#'
+    val machine = Machines.Numbers.MulImpl.appendSpecial(symbols, '#', next)
+    
+    val garb1 = randomString(Random.nextInt(100), (symbols + '#').toArray)
+    val word = randomString(Random.nextInt(100), symbols.toArray)
+    val garb2 = randomString(Random.nextInt(100), (symbols + '#').toArray)
+
+    val left = garb1
+    val right = Blank :: word ++ List(Blank) ++ garb2
+
+    val expleft = garb1
+    val expright = Blank :: word ++ (Alph('#') :: garb2)
+    
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testFind(): Unit = {
+    val next = newNext()
+    val symbols = (0.toChar to 255.toChar).toSet - '#'
+    val machine = Machines.Numbers.MulImpl.find(symbols + '#', '#', next)
+    val left = randomStringFromTapeSymbols(Random.nextInt(40), (symbols.map(s => Alph(s)) + Blank).toArray)
+    val r1 = randomStringFromTapeSymbols(Random.nextInt(40), (symbols.map(s => Alph(s)) + Blank).toArray)
+    val r2 = randomStringFromTapeSymbols(Random.nextInt(40), (symbols.map(s => Alph(s)) + Blank).toArray)
+    val right = r1 ++ List(Alph('#')) ++ r2
+
+    val expleft = r1.reverse ++ left
+    val expright = Alph('#') :: r2
+    
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testCopyAcross(): Unit = {
+    val next = newNext()
+    val machine = Machines.Numbers.MulImpl.copyAcross('1', '#', 'A', next)
+
+    val garbage = randomString(Random.nextInt(100) + 1, ('1' to 'z').toArray)
+    val ones = randomString(Random.nextInt(100) + 1, Array('1'))
+
+    val left = (garbage ++ List(Blank) ++ ones).reverse
+    val right = List(Alph('#'))
+
+    val expleft = left
+    val expright = List(Alph('#')) ++ ones
+  }
+
+  def testMulIterate(): Unit = {
+    val next = newNext()
+
+    val machine = Machines.Numbers.MulImpl.mulIterate('1', '#', 'A', next)
+    val ones = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
+    val oneGroups = (0 to Random.nextInt(100)).map(_ => Blank :: ones).toList.flatten
+
+    val muls = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
+    val blanks = (0 to Random.nextInt(100)).map(_ => Blank).toList
+
+    val left = (Alph('#') :: muls).reverse
+    val right = blanks ++ oneGroups ++ List(Alph('#'))
+    val expleft = left.tail
+    val expright = (Blank :: blanks) ++ oneGroups ++ List(Blank) ++ ones ++ List(Alph('#'))
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testCombineGroups(): Unit = {
+    val next = newNext()
+
+    val machine = Machines.Numbers.MulImpl.combineGroups('1', '#', next)
+    val ones = (0 to Random.nextInt(100) + 5).map(_ => Alph('1')).toList
+
+    val nGroups = 5 + Random.nextInt(100)
+    val spacedGroups = (1 to nGroups).map(_ => Blank :: ones).toList.flatten.tail
+    val garbage = randomString(Random.nextInt(100) + 5, ('1' to 'z').toArray)
+    
+
+    val nonSpacedGroups = (1 to nGroups).map(_ => ones).toList.flatten
+    val blanks = (1 to nGroups - 1).map(_ => Blank).toList
+
+    val left = Nil
+    val right = (Alph('#') :: spacedGroups) ++ List(Alph('#')) ++ garbage
+
+    val expleft = Nil
+    val expright = (Alph('#') :: nonSpacedGroups) ++ List(Alph('#')) ++ blanks ++ garbage
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testTrimLeft(): Unit = {
+    val next = newNext()
+    val machine = Machines.Numbers.MulImpl.trimLeft('1', '#', next)
+
+    val blanks = (0 to Random.nextInt(100)).map(_ => Blank).toList
+    val ones = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
+    val garbage = randomString(Random.nextInt(100), ('1' to 'z').toArray)
+
+    val left = (Alph('#') :: blanks).reverse
+    val right = ((Blank :: ones) ++ List(Alph('#'))) ++ garbage
+
+    val expleft = Nil
+    val expright = (Alph('#') :: ones) ++ List(Alph('#')) ++ (Blank :: blanks) ++ garbage
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testLastBlank(): Unit = {
+    val next = newNext()
+    val machine = Machines.Numbers.MulImpl.lastBlank(Set('1'), next)
+    val garbage = randomString(Random.nextInt(100), ('2' to 'z').toArray)
+    val blanks = (0 to Random.nextInt(100)).map(_ => Blank).toList
+    val left = Nil
+    val right = blanks ++ List(Alph('1')) ++ garbage
+    val expleft = blanks.tail
+    val expright = Blank :: List(Alph('1')) ++ garbage
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testMulFinish(): Unit = {
+    val next = newNext()
+    val m = Random.nextInt(100) + 1
+    val n = Random.nextInt(100) + 1
+  
+    val machine = Machines.Numbers.MulImpl.mulFinish('1', '#', next)
+    val group = (1 to n).map(_ => Alph('1')).toList
+    val groups = (1 to m).map(_ => Blank :: group).toList.flatten.tail
+    val blanks = (0 to Random.nextInt(10)).map(_ => Blank).toList
+
+    val left = List(Alph('#'))
+    val right = blanks ++ groups ++ List(Alph('#'))
+
+    val expleft = Nil
+    val expright = Blank :: (1 to m * n).map(_ => Alph('1')).toList
+
+    testMachine(machine, left, right, expleft, expright)
+  }
+
+  def testPositiveMul(): Unit = {
+    val next = newNext()
+    val machine = Machines.Numbers.MulImpl.positiveMultiply('1', '#', 'A', next)
+    
+    for (i <- 1 to 200) {
+      val m = Random.nextInt(25) + 1
+      val n = Random.nextInt(25) + 1
+
+      val right = List(Blank) ++ (1 to m).map(_ => Alph('1')).toList ++ List(Blank) ++ (1 to n).map(_ => Alph('1')).toList
+      val expright = List(Blank) ++ (1 to m * n).map(_ => Alph('1')).toList
+
+      testMachine(machine, Nil, right, Nil, expright)
     }
   }
 
   def main(args: Array[String]): Unit = {
+    Random.setSeed(System.currentTimeMillis)
+
     val standardMethods = Set(
       "equals",
       "toString",

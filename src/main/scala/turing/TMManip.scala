@@ -39,4 +39,13 @@ object TMManip {
 
   def enlarge[Q, A](m: TuringMachine[Q, A], nTapes: Int): MultiMachine[Q, A] =
     workOn(m, 0, nTapes)
+
+  def mirror[Q, A](m: TuringMachine[Q, A]): TuringMachine[Q, A] = 
+    TuringMachine(m.init, m.transitions.map {
+      case (q1, s1) -> (q2, s2, Right) =>
+        (q1, s1) -> (q2, s2, Left)
+      case (q1, s1) -> (q2, s2, Left) =>
+        (q1, s1) -> (q2, s2, Right)
+      case t => t
+    })
 }

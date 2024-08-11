@@ -47,7 +47,7 @@ object TestMultiTapeOps {
       () => { n += 1; n }
     }
 
-    val m = MultiTapeOps.multiEq(('a' to 'z').toSet, next)
+    val m = MultiTapeOps.equal(('a' to 'z').toSet, next)
     val x = "asdnlq".toList.map(x => Alph(x))
     var conf = MultiConfig[Int, Char](List(Nil, Nil), m.init, List(Blank :: x, Blank :: x))
     while (conf.state != Accept && conf.state != Reject) {

@@ -22,7 +22,7 @@ object TestAll {
     )
 
     val packages = List(
-      // "turing.tests",
+      "turing.tests",
       "miniscala.tests"
     )
 

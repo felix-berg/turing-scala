@@ -3,6 +3,7 @@ package turing.machines
 object SimpleOps {
   import turing.TuringMachine._
   import turing.TMUtil._
+  import turing.TMManip._
 
   /**
    * input: Δx for some string x ∈ `symbols`
@@ -46,6 +47,15 @@ object SimpleOps {
     TuringMachine(q0, table)
   }
 
+  /**
+   * input:  ΔxΔy (where x, y ∈ `symbols`)
+   *         ^
+   * output:
+   *  - ΔxΔy and accept (if x == y)
+   *    ^
+   *  - ΔxΔy and reject (if x != y)
+   *    ^
+   */
   def equal[A](symbols: Set[A], alternate: A => A, next: () => Int): TuringMachine[Int, A] = {
     val nextState = () => NonHalt(next())
 
@@ -110,7 +120,7 @@ object SimpleOps {
     ))
   }
 
-  def erase[A](symbols: Set[A], next: () => Int, special: A): TuringMachine[Int, A] = {
+  def erase[A](symbols: Set[A], special: A, next: () => Int): TuringMachine[Int, A] = {
     require(!symbols.contains(special))
     val List(q0, q1, q2) = initStates(3, next)
     val table: TransTable[Int, A] = Map(
@@ -160,4 +170,20 @@ object SimpleOps {
       ))
     }
   }
+
+  def nextBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
+    val (q0, q1) = (NonHalt(next()), NonHalt(next()))
+    val table = symbols.map(s => Alph(s))
+      .foldLeft[TransTable[Int, A]](Map())((tt, s) => tt +
+        ((q0, s) -> (q1, s, Right)) +
+        ((q1, s) -> (q1, s, Right))
+      )
+        + ((q0, Blank) -> (q1, Blank, Right))
+        + ((q1, Blank) -> (Accept, Blank, Stay))
+
+    TuringMachine(q0, table)
+  }
+
+  def prevBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = 
+    mirror(nextBlank(symbols, next))
 }

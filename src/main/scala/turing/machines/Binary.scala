@@ -83,9 +83,9 @@ object Binary {
     val add03      = workOn(add(zero, one, next), List(0, 3), nTapes)
 
     val decr1      = workOn(decr(zero, one, next), 1, nTapes)
-    val erase0     = workOn(erase(set, next, special), 0, nTapes)
-    val erase2     = workOn(erase(set, next, special), 2, nTapes)
-    val erase3     = workOn(erase(set, next, special), 3, nTapes)
+    val erase0     = workOn(erase(set, special, next), 0, nTapes)
+    val erase2     = workOn(erase(set, special, next), 2, nTapes)
+    val erase3     = workOn(erase(set, special, next), 3, nTapes)
 
     val nonEmpty1  = workOn(nonEmpty(set, next), 1, nTapes)
 

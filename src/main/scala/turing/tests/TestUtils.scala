@@ -29,6 +29,18 @@ object TestUtils {
     testMachine(machine, Configuration(left, machine.init, right), Configuration(expleft, finishState, expright))
   }
 
+  def testMachine[Q, A](machine: MultiMachine[Q, A], start: MultiConfig[Q, A], expected: MultiConfig[Q, A]): Unit = {
+    val conf = runConfiguration(machine, start).collapse
+    assert(conf == expected.collapse,
+      s"""| testMachine failed:
+          | expected = ${expected.collapse},
+          | got      = $conf""".stripMargin)
+  }
+
+  def testMachine[Q, A](machine: MultiMachine[Q, A], left: List[List[TapeAlph[A]]], right: List[List[TapeAlph[A]]], expleft: List[List[TapeAlph[A]]], expright: List[List[TapeAlph[A]]], finishState: State[Q]): Unit = {
+    testMachine(machine, MultiConfig(left, machine.init, right), MultiConfig(expleft, finishState, expright))
+  }
+
   def randomStringFromTapeSymbols[A](n: Int, arr: Array[TapeAlph[A]]): List[TapeAlph[A]] = 
     if (n == 0) Nil else arr(scala.util.Random.nextInt(arr.length)) :: randomStringFromTapeSymbols(n - 1, arr)
 

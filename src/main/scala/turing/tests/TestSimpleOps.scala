@@ -52,7 +52,7 @@ object TestSimpleOps {
     val set: Set[Char] = ('a' to 'z').toSet
     val arr = set.toArray
 
-    val erase = SimpleOps.erase(set, { var n = 0; () => { n += 1; n } }, '#')
+    val erase = SimpleOps.erase(set, '#', { var n = 0; () => { n += 1; n } })
 
     for (i <- 0 to 10) {
       val n = Math.pow(2, i).toInt

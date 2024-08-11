@@ -20,10 +20,9 @@ object TestBooleanOps {
     testMachine(machine, Nil, List(Blank, Alph('F')), Nil, List(Blank, Alph('T')))
   }
 
-  private def doBinOpTest(m: TuringMachine[Int, Char], a: Char, b: Char, c: Char): Unit = {
-    printRunConfiguration(m, Configuration(Nil, m.init, List(Blank, Alph(a), Blank, Alph(b))), 100)
+  private def doBinOpTest(m: TuringMachine[Int, Char], a: Char, b: Char, c: Char): Unit = 
     testMachine(m, Nil, List(Blank, Alph(a), Blank, Alph(b)), Nil, List(Blank, Alph(c)))
-  }
+
     
   def boolOps(): Unit = {
     val next = newNext()

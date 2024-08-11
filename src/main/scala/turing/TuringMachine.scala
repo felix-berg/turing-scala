@@ -63,7 +63,7 @@ object TuringMachine {
         }.mkString("") + ")\n"
       }.mkString("")
 
-    def collapse: MultiConfig[Q, A] = MultiConfig(lefts.map(collapseTape), state, rights.map(collapseTape))
+    def collapse: MultiConfig[Q, A] = MultiConfig(lefts, state, rights.map(collapseTape))
   }
 
   def getCurrentSymbol[A](conf: Configuration[?, A]): TapeAlph[A] = conf.right match {

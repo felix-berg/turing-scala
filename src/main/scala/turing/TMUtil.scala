@@ -48,4 +48,8 @@ object TMUtil {
 
     (mm1, mm2, mm3)
   }
+
+  // initialize `n` `NonHalt`-states using `next
+  def initStates[Q](n: Int, next: () => Q): List[NonHalt[Q]] =
+    (1 to n).map(_ => NonHalt(next())).toList
 }

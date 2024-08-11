@@ -5,6 +5,14 @@ object ControlFlow {
   import TMUtil.*
   import TuringMachine.*
 
+  def sequence[Q, A](m1: TuringMachine[Q, A], m2: TuringMachine[Q, A]): TuringMachine[Q, A] = {
+    require(combinable(m1, m2))
+    TuringMachine(m1.init, m1.transitions.map {
+      case (q, s1) -> (Accept, s2, dir) =>
+        (q, s1) -> (m2.init, s2, dir)
+      case t => t
+    } ++ m2.transitions)
+  }
 
   def sequence[Q, A](m1: MultiMachine[Q, A], m2: MultiMachine[Q, A]): MultiMachine[Q, A] = {
     require(combinable(m1, m2))
@@ -17,6 +25,9 @@ object ControlFlow {
       case t => t
     } ++ mm2.transitions)
   }
+
+  def sequence[Q, A](ms: List[TuringMachine[Q, A]]): TuringMachine[Q, A] =
+    ms.reduce((a, b) => sequence(a, b))
 
   def sequence[Q, A](ms: List[MultiMachine[Q, A]]): MultiMachine[Q, A] =
     ms.reduce((a, b) => sequence(a, b))

@@ -103,6 +103,17 @@ object ControlFlow {
     })
   }
 
+  case class MachineConnection[Q](to: State[Q], onAccept: State[Q], onReject: State[Q])
+  def insertMachines[Q, A](parent: TuringMachine[Q, A], connections: List[(TuringMachine[Q, A], MachineConnection[Q])]): TuringMachine[Q, A] =
+    connections.foldLeft(parent) {
+      case (par, (child, conn)) => insertMachine(par, child, conn.to, conn.onAccept, conn.onReject)
+    }
+
+  def insertMachines[Q, A](parent: MultiMachine[Q, A], connections: List[(MultiMachine[Q, A], MachineConnection[Q])]): MultiMachine[Q, A] =
+    connections.foldLeft(parent) {
+      case (par, (child, conn)) => insertMachine(par, child, conn.to, conn.onAccept, conn.onReject)
+    }
+
   def nextBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
     val (q0, q1) = (NonHalt(next()), NonHalt(next()))
     val table = symbols.map(s => Alph(s))

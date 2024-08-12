@@ -3,7 +3,7 @@ package turing.machines
 object Unary {
   import turing.TuringMachine._
   import turing.TMUtil._
-  import turing.ControlFlow
+  import turing.ControlFlow._
   import turing.TMManip
 
   /** `o` is the symbol used to represent 1
@@ -113,23 +113,25 @@ object Unary {
      */
     def init[A](o: A, hash: A, next: () => Int): TuringMachine[Int, A] = {
       val List(q0, q1, q2, q3, qnb1, qnb2, qpb) = initStates(7, next)
-      val nb1 = ControlFlow.nextBlank(Set(o, hash), next)
-      val nb2 = ControlFlow.nextBlank(Set(o, hash), next)
-      val pb = ControlFlow.prevBlank(Set(o, hash), next)
+      val nb1 = nextBlank(Set(o, hash), next)
+      val nb2 = nextBlank(Set(o, hash), next)
+      val pb = prevBlank(Set(o, hash), next)
 
       val h = Alph(hash)
       val one = Alph(o)
 
-      val m1 = TuringMachine(q0, Map(
+      val par = TuringMachine(q0, Map(
         (q0, Blank) -> (qnb1, h, Right),
         (q1, Blank) -> (qpb, h, Left),
         (q2, Blank) -> (q3, Blank, Left),
         (q3, one) -> (Accept, Blank, Stay)
       ))
-      val m2 = ControlFlow.insertMachine(m1, nb1, qnb1, qnb2, Reject)
-      val m3 = ControlFlow.insertMachine(m2, nb2, qnb2, q1, Reject)
-      val m4 = ControlFlow.insertMachine(m3, pb, qpb, q2, Reject)
-      m4
+
+      insertMachines(par, List(
+        (nb1, MachineConnection(qnb1, qnb2, Reject)),
+        (nb2, MachineConnection(qnb2, q1, Reject)),
+        (pb,  MachineConnection(qpb, q2, Reject))
+      ))
     }
 
     /**
@@ -160,16 +162,17 @@ object Unary {
      */
     def appendSpecial[A](symbols: Set[A], special: A, next: () => Int): TuringMachine[Int, A] = {
       val List(q0, q1, qnb, qpb) = initStates(4, next)
-      val nb = ControlFlow.nextBlank(symbols + special, next)
-      val pb = ControlFlow.prevBlank(symbols + special, next)
+      val nb = nextBlank(symbols + special, next)
+      val pb = prevBlank(symbols + special, next)
 
       val m1 = TuringMachine(q0, Map(
         (q0, Blank) -> (qnb, Blank, Stay),
         (q1, Blank) -> (qpb, Alph(special), Stay)
       ))
-      val m2 = ControlFlow.insertMachine(m1, nb, qnb, q1, Reject)
-      val m3 = ControlFlow.insertMachine(m2, pb, qpb, Accept, Reject)
-      m3
+      insertMachines(m1, List(
+        (nb, MachineConnection(qnb, q1, Reject)),
+        (pb, MachineConnection(qpb, Accept, Reject))
+      ))
     }
 
     /**
@@ -240,22 +243,24 @@ object Unary {
       val delback = delBack(o, next)
       val findhash = find(symbols, hash, next)
       val copyacross = copyAcross(o, hash, special, next)
-      val nb1 = ControlFlow.nextBlank(symbols, next)
-      val nb2 = ControlFlow.nextBlank(symbols, next)
+      val nb1 = nextBlank(symbols, next)
+      val nb2 = nextBlank(symbols, next)
       val findhashrev = findReverse(symbols, hash, next)
 
-      val m1 = TuringMachine(q0, Map(
+      val par = TuringMachine(q0, Map(
         (q0, Blank) -> (qdelback, Blank, Stay),
         (q1, Alph(hash)) -> (qnb1, Blank, Right),
         (q2, Blank) -> (qfindhashrev, Alph(hash), Left),
       ))
 
-      val m2 = ControlFlow.insertMachine(m1, delback, qdelback, qfindhash, Reject)
-      val m3 = ControlFlow.insertMachine(m2, findhash, qfindhash, qcopyacross, Reject)
-      val m4 = ControlFlow.insertMachine(m3, copyacross, qcopyacross, q1, Reject)
-      val m5 = ControlFlow.insertMachine(m4, nb1, qnb1, q2, Reject)
-      val m6 = ControlFlow.insertMachine(m5, findhashrev, qfindhashrev, qnb2, Reject)
-      ControlFlow.insertMachine(m6, nb2, qnb2, Accept, Reject)
+      insertMachines(par, List(
+        (delback, MachineConnection(qdelback, qfindhash, Reject)),
+        (findhash, MachineConnection(qfindhash, qcopyacross, Reject)),
+        (copyacross, MachineConnection(qcopyacross, q1, Reject)),
+        (nb1, MachineConnection(qnb1, q2, Reject)),
+        (findhashrev, MachineConnection(qfindhashrev, qnb2, Reject)),
+        (nb2, MachineConnection(qnb2, Accept, Reject))
+      ))
     }
 
     /**
@@ -280,7 +285,7 @@ object Unary {
         (q3, h) -> (q4, Blank, Left),
         (q4, one) -> (q2, h, Left)
       ))
-      ControlFlow.insertMachine(m1, findhash, qfindhash, q1, Reject)
+      insertMachine(m1, findhash, qfindhash, q1, Reject)
     }
 
     /**
@@ -304,7 +309,7 @@ object Unary {
         (q3, Blank) -> (q0, Blank, Stay),
         (q3, h) -> (q0, h, Stay)
       ))
-      ControlFlow.insertMachine(m1, findhash, qfindhash, q1, Reject)
+      insertMachine(m1, findhash, qfindhash, q1, Reject)
     }
 
     /**
@@ -332,23 +337,24 @@ object Unary {
       val combinegroups = combineGroups(o, hash, next)
       val trimleft = trimLeft(o, hash, next)
       val findhash = find(Set(o), hash, next)
-      val pb = ControlFlow.prevBlank(Set(o, hash), next)
+      val pb = prevBlank(Set(o, hash), next)
       val one = Alph(o)
       val h = Alph(hash)
 
-      val m1 = TuringMachine(q0, Map(
+      val par = TuringMachine(q0, Map(
         (q0, Blank) -> (qlastblank, Blank, Right),
         (q1, Blank) -> (qcombinegroups, h, Stay),
         (q2, h) -> (qtrimleft, Blank, Left),
         (q3, h) -> (qfindhash, Blank, Right),
         (q4, h) -> (qpb, Blank, Left)
       ))
-      val m2 = ControlFlow.insertMachine(m1, lastblank, qlastblank, q1, Reject)
-      val m3 = ControlFlow.insertMachine(m2, combinegroups, qcombinegroups, q2, Reject)
-      val m4 = ControlFlow.insertMachine(m3, trimleft, qtrimleft, q3, Reject)
-      val m5 = ControlFlow.insertMachine(m4, findhash, qfindhash, q4, Reject)
-      val m6 = ControlFlow.insertMachine(m5, pb, qpb, Accept, Reject)
-      m6
+      insertMachines(par, List(
+        (lastblank, MachineConnection(qlastblank, q1, Reject)),
+        (combinegroups, MachineConnection(qcombinegroups, q2, Reject)),
+        (trimleft, MachineConnection(qtrimleft, q3, Reject)),
+        (findhash, MachineConnection(qfindhash, q4, Reject)),
+        (pb, MachineConnection(qpb, Accept, Reject))
+      ))
     }
 
     /**
@@ -363,15 +369,16 @@ object Unary {
       val mulfinish = mulFinish(o, hash, next)
       val muliterate = mulIterate(o, hash, special, next)
 
-      val m1 = TuringMachine[Int, A](q0, Map(
+      val par = TuringMachine[Int, A](q0, Map(
         (q0, Blank) -> (qinit, Blank, Stay),
         (q1, Blank) -> (qemptybehind, Blank, Stay)
       ))
-      val m2 = ControlFlow.insertMachine(m1, initt, qinit, qemptybehind, Reject)
-      val m3 = ControlFlow.insertMachine(m2, emptybehind, qemptybehind, qmulfinish, qmuliterate)
-      val m4 = ControlFlow.insertMachine(m3, mulfinish, qmulfinish, Accept, Reject)
-      val m5 = ControlFlow.insertMachine(m4, muliterate, qmuliterate, q1, Reject)
-      m5
+      insertMachines(par, List(
+        (initt, MachineConnection(qinit, qemptybehind, Reject)),
+        (emptybehind, MachineConnection(qemptybehind, qmulfinish, qmuliterate)),
+        (mulfinish, MachineConnection(qmulfinish, Accept, Reject)),
+        (muliterate, MachineConnection(qmuliterate, q1, Reject))
+      ))
     }
 
     def cleanAndRejectIfZero[A](o: A, hash: A, next: () => Int): TuringMachine[Int, A] = {
@@ -412,11 +419,12 @@ object Unary {
     val cleanzero = MulImpl.cleanAndRejectIfZero(o, hash, next)
     val positivemul = MulImpl.positiveMultiply(o, hash, special, next)
 
-    val m1 = TuringMachine[Int, A](q0, Map(
+    val par = TuringMachine[Int, A](q0, Map(
       (q0, Blank) -> (qcleanzero, Blank, Stay),
     ))
-    val m2 = ControlFlow.insertMachine(m1, cleanzero, qcleanzero, qpositivemul, Accept)
-    val m3 = ControlFlow.insertMachine(m2, positivemul, qpositivemul, Accept, Reject)
-    m3
+    insertMachines(par, List(
+      (cleanzero, MachineConnection(qcleanzero, qpositivemul, Accept)),
+      (positivemul, MachineConnection(qpositivemul, Accept, Reject))
+    ))
   }
 }

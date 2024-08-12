@@ -3,7 +3,7 @@ package turing.machines
 object Bool {
   import turing.TuringMachine._
   import turing.TMUtil._
-  import turing.ControlFlow
+  import turing.ControlFlow._
 
   /**
    * input:  Δb... (where b ∈ { `t`, `f` })
@@ -93,15 +93,16 @@ object Bool {
 
   def ifThenElse[A](cond: TuringMachine[Int, A], thn: TuringMachine[Int, A], els: TuringMachine[Int, A], t: A, f: A, next: () => Int): TuringMachine[Int, A] = {
     val List(q0, q1, q2, qcond, qthn, qels) = initStates(6, next)
-    val m1 = TuringMachine[Int, A](q0, Map(
+    val par = TuringMachine[Int, A](q0, Map(
       (q0, Blank) -> (qcond, Blank, Stay),
       (q1, Blank) -> (q2, Blank, Right),
       (q2, Alph(t)) -> (qthn, Blank, Left),
       (q2, Alph(f)) -> (qels, Blank, Left)
     ))
-    val m2 = ControlFlow.insertMachine(m1, cond, qcond, q1, Reject)
-    val m3 = ControlFlow.insertMachine(m2, thn, qthn, Accept, Reject)
-    val m4 = ControlFlow.insertMachine(m3, els, qels, Accept, Reject)
-    m4
+    insertMachines(par, List(
+      (cond, MachineConnection(qcond, q1, Reject)),
+      (thn, MachineConnection(qthn, Accept, Reject)),
+      (els, MachineConnection(qels, Accept, Reject))
+    ))
   }
 }

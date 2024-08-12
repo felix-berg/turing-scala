@@ -6,7 +6,7 @@ object EnvStack {
   import turing.TuringMachine._
   import turing.TMUtil._
   import turing.TMManip._
-  import turing.ControlFlow
+  import turing.ControlFlow._
 
   /**
    * input:  [ΔxΔyΔ...](where x ∈ `namesymbols`, y ∈ `valuesymbols`)
@@ -73,15 +73,16 @@ object EnvStack {
       val cpy = workOn(MultiTapeOps.copyDown(valuesymbols, next), List(1, 0), 2)
       val pb = workOn(SimpleOps.prevBlank(namesymbols, next), 1, 2)
 
-      val m1 = MultiMachine[Int, A](q0, Map(
+      val par = MultiMachine[Int, A](q0, Map(
         (q0, List(Blank, Blank)) -> (qequal, List(Blank, Blank), List(Stay, Stay))
       ))
-      val m2 = ControlFlow.insertMachine(m1, equal, qequal, qnb, Reject)
-      val m3 = ControlFlow.insertMachine(m2, nb, qnb, qerase, Reject)
-      val m4 = ControlFlow.insertMachine(m3, erase, qerase, qcpy, Reject)
-      val m5 = ControlFlow.insertMachine(m4, cpy, qcpy, qpb, Reject)
-      val m6 = ControlFlow.insertMachine(m5, pb, qpb, Accept, Reject)
-      m6
+      insertMachines(par, List(
+        (equal, MachineConnection(qequal, qnb, Reject)),
+        (nb, MachineConnection(qnb, qerase, Reject)),
+        (erase, MachineConnection(qerase, qcpy, Reject)),
+        (cpy, MachineConnection(qcpy, qpb, Reject)),
+        (pb, MachineConnection(qpb, Accept, Reject))
+      ))
     }
   }
 
@@ -99,7 +100,7 @@ object EnvStack {
 
     val hs = Alph(hash)
 
-    val m1 = MultiMachine(q0, Map(
+    val par = MultiMachine(q0, Map(
       (q0, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Stay, Right)),
       (q1, List(Blank, Blank)) -> (q2, List(Blank, hs), List(Stay, Left)),
       (q2, List(Blank, Blank)) -> (q3, List(Blank, Blank), List(Stay, Left)),
@@ -110,12 +111,12 @@ object EnvStack {
       (q5, List(Blank, Blank)) -> (Reject, List(Blank, Blank), List(Stay, Stay))
     ) ++ valuesymbols.map(s => (q3, List(Blank, Alph(s))) -> (qpb1, List(Blank, Alph(s)), List(Stay, Right))))
 
-    val m2 = ControlFlow.insertMachine(m1, pb1, qpb1, qpb2, Reject)
-    val m3 = ControlFlow.insertMachine(m2, pb2, qpb2, qgetvalue, Reject)
-    val m4 = ControlFlow.insertMachine(m3, getvalue, qgetvalue, qfindhash1, q2)
-    val m5 = ControlFlow.insertMachine(m4, findhash1, qfindhash1, q4, Reject)
-    val m6 = ControlFlow.insertMachine(m5, findhash2, qfindhash2, q5, Reject)
-
-    m6
+    insertMachines(par, List(
+      (pb1, MachineConnection(qpb1, qpb2, Reject)),
+      (pb2, MachineConnection(qpb2, qgetvalue, Reject)),
+      (getvalue, MachineConnection(qgetvalue, qfindhash1, q2)),
+      (findhash1, MachineConnection(qfindhash1, q4, Reject)),
+      (findhash2, MachineConnection(qfindhash2, q5, Reject))
+    ))
   }
 } 

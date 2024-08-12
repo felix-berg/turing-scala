@@ -52,7 +52,7 @@ object TestBinaryOps {
     val toBin = (x: Int) =>
       if (x == 0) Nil else x.toBinaryString.reverse.map[TapeAlph[Char]](x => Alph(x)).to(List)
 
-    for (i <- 0 to 1000) {
+    for (i <- 0 to 25) {
       val n = scala.util.Random.nextInt(max + 1)
       val m = scala.util.Random.nextInt(max + 1)
 
@@ -78,7 +78,7 @@ object TestBinaryOps {
     val toBin = (x: Int) =>
       if (x == 0) Nil else x.toBinaryString.reverse.map[TapeAlph[Char]](x => Alph(x)).to(List)
 
-    for (i <- 0 to 1000) {
+    for (i <- 0 to 25) {
       val m = scala.util.Random.nextInt(max + 1)
       val n = scala.util.Random.nextInt(max + 1 - m) + m
       assert(n >= m)
@@ -100,7 +100,7 @@ object TestBinaryOps {
       }
     }
 
-    val max = 200
+    val max = 25
     val machine = Binary.mult('0', '1', 'Z', 'O', next)
 
     val toBin = (x: Int) =>

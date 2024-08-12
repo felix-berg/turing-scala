@@ -34,6 +34,15 @@ object TMManip {
       })
   }
 
+  def seperate[Q, A](m: MultiMachine[Q, A]): List[TuringMachine[Q, A]] =
+    require(valid(m))
+    (0 until numTapes(m)).map(i => TuringMachine(
+      m.init, m.transitions.map {
+        case (q1, ss1) -> (q2, ss2, dirs) =>
+          (q1, ss1(i)) -> (q2, ss2(i), dirs(i))
+      }
+    )).toList
+
   def enlarge[Q, A](m: MultiMachine[Q, A], nTapes: Int): MultiMachine[Q, A] =
     workOn(m, (0 until numTapes(m)).toList, nTapes)
 

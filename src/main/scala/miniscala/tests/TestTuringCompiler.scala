@@ -15,36 +15,39 @@ object TestTuringCompiler {
     }).toList
 
   private def unaryString(n: Int): String =
-    (1 to n).map(_ => '1').mkString
+    (1 to n).map(_ => ONE).mkString
 
   private def testProgram(prog: String, left: String, right: String, expleft: String, expright: String): Unit = {
     val next = newNext()
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
 
-    testMachine(m, toTape(left).reverse, toTape(right), toTape(expleft.reverse), toTape(expright))
+    testMachine(m, List(toTape(left).reverse, List(Alph('#'))), List(toTape(right), Nil), List(toTape(expleft).reverse, List(Alph('#'))), List(toTape(expright), Nil), Accept)
   }
 
-  private def simProgram(prog: String, left: String = "", right: String = ""): Unit = {
+  private def testProgram(prog: String, expright: String): Unit = 
+    testProgram(prog, "", "", "", expright)
+
+  private def simProgram(prog: String, left: String = "#", right: String = "#"): Unit = {
     val next = newNext()
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
     
-    printRunConfiguration(m, Configuration(toTape(left).reverse, m.init, toTape(right)), 100)
+    printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, Nil), m.init, List(toTape(right), Nil)), 100)
   }
 
   def constants(): Unit = {
-    testProgram("1", "", "", "", "_1")
-    testProgram("2", "", "", "", "_11")
-    testProgram("11", "", "", "", "_" + unaryString(11))
-    testProgram("true", "", "", "", "_T")
-    testProgram("false", "", "", "", "_F")
+    testProgram("1", "_1")
+    testProgram("2", "_11")
+    testProgram("11", "_" + unaryString(11))
+    testProgram("true", "_T")
+    testProgram("false", "_F")
   }
 
   def addition(): Unit = {
-    testProgram("0 + 5", "", "", "", "_11111")
-    testProgram("5 + 0", "", "", "", "_11111")
-    testProgram("0 + 0", "", "", "", "")
+    testProgram("0 + 5", "_11111")
+    testProgram("5 + 0", "_11111")
+    testProgram("0 + 0", "")
 
     for (i <- 1 to 100) {
       val m = Random.nextInt(100)
@@ -55,8 +58,8 @@ object TestTuringCompiler {
   }
 
   def subtraction(): Unit = {
-    testProgram("5 - 0", "", "", "", "_11111")
-    testProgram("0 - 0", "", "", "", "")
+    testProgram("5 - 0", "_11111")
+    testProgram("0 - 0", "")
 
     for (i <- 1 to 100) {
       val n = Random.nextInt(100)
@@ -68,9 +71,9 @@ object TestTuringCompiler {
   }
   
   def multiplication(): Unit = {
-    testProgram("5 * 0", "", "", "", "")
-    testProgram("0 * 5", "", "", "", "")
-    testProgram("0 * 0", "", "", "", "")
+    testProgram("5 * 0", "")
+    testProgram("0 * 5", "")
+    testProgram("0 * 0", "")
 
     for (i <- 1 to 20) {
       val m = Random.nextInt(20)
@@ -83,20 +86,27 @@ object TestTuringCompiler {
   def booleanOps(): Unit = {
     val t = TRUE
     val f = FALSE
-    testProgram("true  & true",  "", "", "", s"_$t")
-    testProgram("true  & false", "", "", "", s"_$f")
-    testProgram("false & true",  "", "", "", s"_$f")
-    testProgram("false & false", "", "", "", s"_$f")
+    testProgram("true  & true",  s"_$t")
+    testProgram("true  & false", s"_$f")
+    testProgram("false & true",  s"_$f")
+    testProgram("false & false", s"_$f")
 
-    testProgram("true  | true",  "", "", "", s"_$t")
-    testProgram("true  | false", "", "", "", s"_$t")
-    testProgram("false | true",  "", "", "", s"_$t")
-    testProgram("false | false", "", "", "", s"_$f")
+    testProgram("true  | true",  s"_$t")
+    testProgram("true  | false", s"_$t")
+    testProgram("false | true",  s"_$t")
+    testProgram("false | false", s"_$f")
   }
 
   def ifThenElse(): Unit = {
-    testProgram("if (true) 1 else 2", "", "", "", s"_1")
-    testProgram("if (false) 1 else 2", "", "", "", s"_11")
-    testProgram("if (false) true else false", "", "", "", s"_$FALSE")
+    testProgram("if (true) 1 else 2", s"_1")
+    testProgram("if (false) 1 else 2", s"_11")
+    testProgram("if (false) true else false", s"_$FALSE")
+  }
+
+  def valDecls(): Unit = {
+    testProgram("{ val x = 1; 1 }", "_1")
+    testProgram("{ val x = 2; x }", "_11")
+    testProgram("{ val x = 2; { val x = 4; x } + x }", "_111111")
+    testProgram("{ val x = 2; { val y = 5; val x = 4; x + y } + x }", "_11111111111")
   }
 }

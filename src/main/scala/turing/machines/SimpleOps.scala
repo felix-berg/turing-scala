@@ -171,6 +171,36 @@ object SimpleOps {
     }
   }
 
+  /**
+   * input:  Δ
+   *         ^
+   * output: Δx  (where x = `str`)
+   *         ^
+   */
+  def write[A](str: List[A], next: () => Int): TuringMachine[Int, A] = 
+    if (str.isEmpty) accept(NonHalt(next()), Set()) else {
+      val sstr = str.map(s => Alph(s))
+
+      val q0 :: qss = initStates(str.length + 3, next): @unchecked
+      val qs = qss.take(str.length)
+      val qe = qss(qss.length - 2)
+      val qf = qss(qss.length - 1)
+      val qlast = qss(qss.length - 3) // qn or q0 (if str = "")
+
+      val q1qn_1 = qs // q1 -> qn
+      val q2qn = qs.tail ++ List(qe) // q2 -> qe
+      assert(q1qn_1.length == str.length && q2qn.length == str.length)
+
+      TuringMachine(q0, Map(
+        (q0, Blank) -> (qss.head, Blank, Right),
+        (qe, Blank) -> (qf, Blank, Left),
+        (qf, Blank) -> (Accept, Blank, Stay)
+      ) ++ q1qn_1.zip(q2qn).zip(sstr).map {
+        case ((qi, qip1), si) =>
+          (qi, Blank) -> (qip1, si, Right)
+      } ++ sstr.toSet.map(s => (qf, s) -> (qf, s, Left)))
+    }
+
   def nextBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
     val (q0, q1) = (NonHalt(next()), NonHalt(next()))
     val table = symbols.map(s => Alph(s))

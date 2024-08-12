@@ -78,4 +78,17 @@ object TestSimpleOps {
     val nothing = SimpleOps.nSymbols('1', 0, next)
     testMachine(nothing, Nil, Nil, Nil, Nil)
   }
+
+  def writeX(): Unit = {
+    val next = newNext()
+
+    val tx = randomString(Random.nextInt(20), ('1' to 'z').toArray)
+    val x = tx.map { case Alph(c) => c }
+    val machine = SimpleOps.write(x, next)
+    
+    testMachine(machine, Nil, Nil, Nil, Blank :: tx)
+
+    val nothing = SimpleOps.write[Char](Nil, next)
+    testMachine(nothing, Nil, Nil, Nil, Nil)
+  }
 }

@@ -23,9 +23,9 @@ object TestEnvStack {
     val machine = EnvStack.push(('a' to 'z').toSet, Set('1'), '#', next)
     assert(valid(machine) && numTapes(machine) == 2)
       
-    val name = randomString(Random.nextInt(20) + 1, ('a' to 'z').toArray)
+    val name = randomTape(Random.nextInt(20) + 1, ('a' to 'z').toArray)
     val ones = toTape(unaryString(Random.nextInt(20) + 1))
-    val garbage = randomString(Random.nextInt(100), ('1' to 'z').toArray)
+    val garbage = randomTape(Random.nextInt(100), ('1' to 'z').toArray)
     
     val left = List(Nil, Nil)
     val right = List(Blank :: name ++ List(Blank) ++ ones ++ List(Blank) ++ garbage, Nil)
@@ -41,7 +41,7 @@ object TestEnvStack {
     val machine = EnvStack.pop(('a' to 'z').toSet, Set('1'), next)
     assert(valid(machine) && numTapes(machine) == 2)
 
-    val name = randomString(Random.nextInt(20) + 1, ('a' to 'z').toArray)
+    val name = randomTape(Random.nextInt(20) + 1, ('a' to 'z').toArray)
     val ones = toTape(unaryString(Random.nextInt(20) + 1))
 
     val left = List(Nil, (Blank :: name ++ List(Blank) ++ ones).reverse)
@@ -59,7 +59,7 @@ object TestEnvStack {
     val machine = EnvStack.Impl.getValueIfMatches(namesymbols, valuesymbols, '#', next)
     
     { // good case
-      val x = randomString(Random.nextInt(20) + 1, namesymbols.toArray)
+      val x = randomTape(Random.nextInt(20) + 1, namesymbols.toArray)
       val v = toTape(unaryString(Random.nextInt(20) + 1))
       val pair = Blank :: x ++ List(Blank) ++ v
       
@@ -71,9 +71,9 @@ object TestEnvStack {
       testMachine(machine, left, right, expleft, expright, Accept)
     }
     { // bad case
-      val x = randomString(Random.nextInt(20) + 1, namesymbols.toArray)
+      val x = randomTape(Random.nextInt(20) + 1, namesymbols.toArray)
       var y = x
-      while (y == x) y = randomString(Random.nextInt(20) + 1, namesymbols.toArray)
+      while (y == x) y = randomTape(Random.nextInt(20) + 1, namesymbols.toArray)
       assert(y != x)
       val v = toTape(unaryString(Random.nextInt(20) + 1))
 
@@ -95,7 +95,7 @@ object TestEnvStack {
     
     { // good case
       val n = Random.nextInt(4) + 2
-      val xs = (1 to n).map(_ => randomString(Random.nextInt(20) + 1, namesymbols.toArray)).toList
+      val xs = (1 to n).map(_ => randomTape(Random.nextInt(20) + 1, namesymbols.toArray)).toList
       val vs = (1 to n).map(_ => toTape(unaryString(Random.nextInt(20) + 1))).toList
       val ps = xs.zip(vs).map((x, v) => Blank :: x ++ List(Blank) ++ v)
 

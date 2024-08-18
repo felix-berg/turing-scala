@@ -22,18 +22,18 @@ object TestTuringCompiler {
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
 
-    testMachine(m, List(toTape(left).reverse, List(Alph('#'))), List(toTape(right), Nil), List(toTape(expleft).reverse, List(Alph('#'))), List(toTape(expright), Nil), Accept)
+    testMachine(m, List(toTape(left).reverse, List(Alph(HASH))), List(toTape(right), Nil), List(toTape(expleft).reverse, List(Alph(HASH))), List(toTape(expright), Nil), Accept)
   }
 
   private def testProgram(prog: String, expright: String): Unit = 
     testProgram(prog, "", "", "", expright)
 
-  private def simProgram(prog: String, left: String = "#", right: String = "#"): Unit = {
+  private def simProgram(prog: String, left: String = "", right: String = ""): Unit = {
     val next = newNext()
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
     
-    printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, Nil), m.init, List(toTape(right), Nil)), 100)
+    printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, List(Alph(HASH))), m.init, List(toTape(right), Nil)), 100)
   }
 
   def constants(): Unit = {
@@ -95,6 +95,20 @@ object TestTuringCompiler {
     testProgram("true  | false", s"_$t")
     testProgram("false | true",  s"_$t")
     testProgram("false | false", s"_$f")
+
+    testProgram("!true", s"_$f")
+    testProgram("!false", s"_$t")
+    testProgram("!(!true)", s"_$t")
+    testProgram("!(!false)", s"_$f")
+  }
+
+  def equality(): Unit = {
+    testProgram("1 == 1", s"_$TRUE")
+    testProgram("1 == 2", s"_$FALSE")
+    testProgram("true == true", s"_$TRUE")
+    testProgram("true == false", s"_$FALSE")
+    testProgram("false == false", s"_$TRUE")
+    testProgram("false == true", s"_$FALSE")
   }
 
   def ifThenElse(): Unit = {
@@ -108,5 +122,15 @@ object TestTuringCompiler {
     testProgram("{ val x = 2; x }", "_11")
     testProgram("{ val x = 2; { val x = 4; x } + x }", "_111111")
     testProgram("{ val x = 2; { val y = 5; val x = 4; x + y } + x }", "_11111111111")
+  }
+
+  def combinations(): Unit = {
+    testProgram(
+      """{ val x = 10;
+         | val y = x * 2;
+         | val z = if (y == x * 2) y * x else x - 2;
+         | y + z }""".stripMargin, 
+         "_" + (1 to 220).map(_ => '1').mkString
+    )
   }
 }

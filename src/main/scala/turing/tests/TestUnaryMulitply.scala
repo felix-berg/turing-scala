@@ -1,5 +1,8 @@
 package turing.tests
 
+import turing.TMSimulate.printRunConfiguration
+import turing.TMSimulate
+
 object TestUnaryMulitply {
   import turing.machines._
   import turing.TuringMachine._
@@ -9,7 +12,7 @@ object TestUnaryMulitply {
   def testDelBack(): Unit = {
     val machine = Unary.MulImpl.delBack('1', newNext())
     val ones = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
-    val garbage = randomString(102, ('1' to 'z').toArray)
+    val garbage = randomTape(102, ('1' to 'z').toArray)
 
     // #1111111Δgarbage
     //         ^
@@ -44,7 +47,7 @@ object TestUnaryMulitply {
     val next = newNext()
 
     val machine = Unary.MulImpl.emptyBehind('1', '#', next)
-    val garbage = randomString(Random.nextInt(100), ('1' to 'z').toArray)
+    val garbage = randomTape(Random.nextInt(100), ('1' to 'z').toArray)
     val blanks = (0 to Random.nextInt(50)).map(_ => Blank).toList
 
     { // false case
@@ -65,9 +68,9 @@ object TestUnaryMulitply {
     val symbols = (0.toChar to 255.toChar).toSet - '#'
     val machine = Unary.MulImpl.appendSpecial(symbols, '#', next)
     
-    val garb1 = randomString(Random.nextInt(100), (symbols + '#').toArray)
-    val word = randomString(Random.nextInt(100), symbols.toArray)
-    val garb2 = randomString(Random.nextInt(100), (symbols + '#').toArray)
+    val garb1 = randomTape(Random.nextInt(100), (symbols + '#').toArray)
+    val word = randomTape(Random.nextInt(100), symbols.toArray)
+    val garb2 = randomTape(Random.nextInt(100), (symbols + '#').toArray)
 
     val left = garb1
     val right = Blank :: word ++ List(Blank) ++ garb2
@@ -97,8 +100,8 @@ object TestUnaryMulitply {
     val next = newNext()
     val machine = Unary.MulImpl.copyAcross('1', '#', 'A', next)
 
-    val garbage = randomString(Random.nextInt(100) + 1, ('1' to 'z').toArray)
-    val ones = randomString(Random.nextInt(100) + 1, Array('1'))
+    val garbage = randomTape(Random.nextInt(100) + 1, ('1' to 'z').toArray)
+    val ones = randomTape(Random.nextInt(100) + 1, Array('1'))
 
     val left = (garbage ++ List(Blank) ++ ones).reverse
     val right = List(Alph('#'))
@@ -133,7 +136,7 @@ object TestUnaryMulitply {
 
     val nGroups = 5 + Random.nextInt(100)
     val spacedGroups = (1 to nGroups).map(_ => Blank :: ones).toList.flatten.tail
-    val garbage = randomString(Random.nextInt(100) + 5, ('1' to 'z').toArray)
+    val garbage = randomTape(Random.nextInt(100) + 5, ('1' to 'z').toArray)
     
 
     val nonSpacedGroups = (1 to nGroups).map(_ => ones).toList.flatten
@@ -154,7 +157,7 @@ object TestUnaryMulitply {
 
     val blanks = (0 to Random.nextInt(100)).map(_ => Blank).toList
     val ones = (0 to Random.nextInt(100)).map(_ => Alph('1')).toList
-    val garbage = randomString(Random.nextInt(100), ('1' to 'z').toArray)
+    val garbage = randomTape(Random.nextInt(100), ('1' to 'z').toArray)
 
     val left = (Alph('#') :: blanks).reverse
     val right = ((Blank :: ones) ++ List(Alph('#'))) ++ garbage
@@ -168,7 +171,7 @@ object TestUnaryMulitply {
   def testLastBlank(): Unit = {
     val next = newNext()
     val machine = Unary.MulImpl.lastBlank(Set('1'), next)
-    val garbage = randomString(Random.nextInt(100), ('2' to 'z').toArray)
+    val garbage = randomTape(Random.nextInt(100), ('2' to 'z').toArray)
     val blanks = (0 to Random.nextInt(100)).map(_ => Blank).toList
     val left = Nil
     val right = blanks ++ List(Alph('1')) ++ garbage
@@ -179,22 +182,25 @@ object TestUnaryMulitply {
   }
 
   def testMulFinish(): Unit = {
+    // FIXME: flaky
     val next = newNext()
-    val m = Random.nextInt(100) + 1
-    val n = Random.nextInt(100) + 1
-  
     val machine = Unary.MulImpl.mulFinish('1', '#', next)
-    val group = (1 to n).map(_ => Alph('1')).toList
-    val groups = (1 to m).map(_ => Blank :: group).toList.flatten.tail
-    val blanks = (0 to Random.nextInt(10)).map(_ => Blank).toList
+    for (i <- 1 to 10) {
+      val m = Random.nextInt(20) + 1
+      val n = Random.nextInt(20) + 1
 
-    val left = List(Alph('#'))
-    val right = blanks ++ groups ++ List(Alph('#'))
+      val group = (1 to n).map(_ => Alph('1')).toList
+      val groups = (1 to m).map(_ => Blank :: group).toList.flatten.tail
+      val blanks = (0 to Random.nextInt(10)).map(_ => Blank).toList
 
-    val expleft = Nil
-    val expright = Blank :: (1 to m * n).map(_ => Alph('1')).toList
+      val left = List(Alph('#'))
+      val right = blanks ++ groups ++ List(Alph('#'))
 
-    testMachine(machine, left, right, expleft, expright)
+      val expleft = Nil
+      val expright = Blank :: (1 to m * n).map(_ => Alph('1')).toList
+
+      testMachine(machine, left, right, expleft, expright)
+    }
   }
 
   def testPositiveMul(): Unit = {

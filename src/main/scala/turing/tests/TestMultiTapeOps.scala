@@ -12,7 +12,7 @@ object TestMultiTapeOps {
 
     val m = MultiTapeOps.copyDown(set, { var n = 0; () => { n += 1; n } })
     for (i <- 0 to 10) {
-      val str = randomString(Math.pow(2, i).toInt, arr)
+      val str = randomTape(Math.pow(2, i).toInt, arr)
 
       val start = MultiConfig(
         List(Nil, Nil),

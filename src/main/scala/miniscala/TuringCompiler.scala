@@ -10,7 +10,7 @@ object TuringCompiler {
   val ONE: Char = '1'
   val FALSE: Char = 'F'
   val TRUE: Char = 'T'
-  val HASH: Char = HASH
+  val HASH: Char = '#'
   val SPECIAL: Char = 'A'
 
   val VALIDNAMESYMBOLS: Set[Char] = ('1' to '9').toSet ++ ('a' to 'z').toSet ++ ('A' to 'Z').toSet + '_'
@@ -33,6 +33,8 @@ object TuringCompiler {
       case MultBinOp() => composeMachine(lm, rm, Unary.mul(ONE, HASH, SPECIAL, next), Set(ONE))
       case AndBinOp() => composeMachine(lm, rm, Bool.and(TRUE, FALSE, next), Set(TRUE, FALSE))
       case OrBinOp() => composeMachine(lm, rm, Bool.or(TRUE, FALSE, next), Set(TRUE, FALSE))
+      case EqualBinOp() => 
+        composeMachine(lm, rm, Bool.equality(Set(TRUE, FALSE, ONE), Set('t', 'f', 'o'), HASH, TRUE, FALSE, next), Set(TRUE, FALSE, ONE))
       case _ => ???
     }
   }
@@ -53,7 +55,7 @@ object TuringCompiler {
 
       case BlockExp(decls, Nil, Nil, Nil, List(exp)) =>
         def evalDeclAndPush(decl: ValDecl): MultiMachine[Int, Char] = {
-          // TODO: doesn't handle not found name
+          // FIXME: doesn't handle not found name
           val writename = onMainTape(SimpleOps.write(decl.x.toList, next))
           val nb = onMainTape(ControlFlow.nextBlank(VALIDNAMESYMBOLS, next))
           val pb = onMainTape(ControlFlow.prevBlank(VALIDNAMESYMBOLS, next))
@@ -69,6 +71,10 @@ object TuringCompiler {
         val writename = onMainTape(SimpleOps.write(x.toList, next))
         val get = EnvStack.get(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, HASH, next)
         ControlFlow.sequence(List(writename, get))
+
+      case UnOpExp(NotUnOp(), exp) =>
+        ControlFlow.sequence(compile(exp, next), onMainTape(Bool.not(TRUE, FALSE, next)))
+
       case _ => ???
     }
   }

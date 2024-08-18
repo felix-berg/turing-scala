@@ -120,4 +120,31 @@ object Bool {
       (els, MachineConnection(qels, Accept, Reject))
     ))
   }
+
+  /**
+   * input:  ΔxΔy (where x, y ∈ `symbols` (x, y are strings))
+   *         ^
+   * output: Δb   (where b = `t`, if x = y, b = `f`, if x != y)
+   *         ^
+   */
+  def equality[A](symbols: Set[A], alternateSymbols: Set[A], hash: A, t: A, f: A, next: () => Int): TuringMachine[Int, A] = {
+    assert(symbols.size == alternateSymbols.size)
+    val List(q0, qequal, qerase1, qerase2, q1, q2, q3, q4) = initStates(8, next)
+    val map = symbols.zip(alternateSymbols).toMap
+    val equal = SimpleOps.equal(symbols, map, next)
+    val erase1 = SimpleOps.eraseN(2, symbols, hash, next)
+    val erase2 = SimpleOps.eraseN(2, symbols, hash, next)
+    val parent = TuringMachine(q0, Map(
+      (q0, Blank) -> (qequal, Blank, Stay),
+      (q1, Blank) -> (q2, Blank, Right),
+      (q2, Blank) -> (Accept, Alph(t), Left),
+      (q3, Blank) -> (q4, Blank, Right),
+      (q4, Blank) -> (Accept, Alph(f), Left),
+    ))
+    insertMachines(parent, List(
+      (equal, MachineConnection(qequal, qerase1, qerase2)),
+      (erase1, MachineConnection(qerase1, q1, Reject)),
+      (erase2, MachineConnection(qerase2, q3, Reject))
+    ))
+  }
 }

@@ -44,6 +44,9 @@ object TestUtils {
   def randomStringFromTapeSymbols[A](n: Int, arr: Array[TapeAlph[A]]): List[TapeAlph[A]] = 
     if (n == 0) Nil else arr(scala.util.Random.nextInt(arr.length)) :: randomStringFromTapeSymbols(n - 1, arr)
 
-  def randomString[A](n: Int, arr: Array[A]): List[TapeAlph[A]] =
+  def randomTape[A](n: Int, arr: Array[A]): List[TapeAlph[A]] =
     randomStringFromTapeSymbols(n, arr.map(s => Alph(s)))
+
+  def randomString[A](n: Int, arr: Array[A]): List[A] =
+    if (n == 0) Nil else arr(scala.util.Random.nextInt(arr.length)) :: randomString(n - 1, arr)
 }

@@ -5,6 +5,7 @@ object TestBooleanOps {
   import turing.TMSimulate._
   import turing.machines._
   import TestUtils._
+  import scala.util.Random
 
   def test(): Unit = {
     val next = newNext()
@@ -53,6 +54,28 @@ object TestBooleanOps {
       doBinOpTest(machine, 'T', 'F', 'F')
       doBinOpTest(machine, 'F', 'T', 'F')
       doBinOpTest(machine, 'F', 'F', 'F')
+    }
+  }
+
+  def equality(): Unit = {
+    val set = ('a' to 'z').toSet
+    val alternate = ('A' to 'Z').toSet
+    val machine = Bool.equality(set, alternate, '#', 'T', 'F', newNext())
+
+    { // equal
+      val x = randomTape(Random.nextInt(100) + 20, set.toArray)
+      val right = Blank :: x ++ List(Blank) ++ x
+      val expright = Blank :: Alph('T') :: Nil
+      testMachine(machine, Nil, right, Nil, expright)
+    }
+    { // not equal
+      val x = randomTape(Random.nextInt(100) + 20, set.toArray)
+      var y = x
+      while (y == x)
+        y = randomTape(Random.nextInt(100) + 10, set.toArray)
+      val right = Blank :: x ++ List(Blank) ++ y
+      val expright = Blank :: Alph('F') :: Nil
+      testMachine(machine, Nil, right, Nil, expright)
     }
   }
 }

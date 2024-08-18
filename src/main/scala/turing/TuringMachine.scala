@@ -36,7 +36,7 @@ object TuringMachine {
         case Alph(x) => x.toString
       }.mkString("") + ")"
 
-    def collapse: Configuration[Q, A] = Configuration(collapseTape(left), state, collapseTape(right))
+    def collapse: Configuration[Q, A] = Configuration(left, state, collapseTape(right))
   }
 
   def collapseTape[A](tape: List[TapeAlph[A]]): List[TapeAlph[A]] = tape match {

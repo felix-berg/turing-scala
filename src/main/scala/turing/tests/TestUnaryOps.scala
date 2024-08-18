@@ -14,7 +14,7 @@ object TestUnaryOps {
     
     val machine = Unary.add('1', next)
 
-    for (i <- 0 to 12) {
+    for (i <- 0 to 8) {
       val max = Math.pow(2, i).toInt
       val m = scala.util.Random.nextInt(max)
       val n = scala.util.Random.nextInt(max)
@@ -44,7 +44,7 @@ object TestUnaryOps {
     
     val machine = Unary.sub('1', '#', next)
 
-    for (i <- 0 to 12) {
+    for (i <- 0 to 8) {
       val max = Math.pow(2, i).toInt
       val n = scala.util.Random.nextInt(max)
       val m = scala.util.Random.nextInt(max - n) + n

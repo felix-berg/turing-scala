@@ -77,7 +77,6 @@ object Functions {
 
       ControlFlow.sequence(List(prepareEnv, copyToMain, cleanEnv, forward))
     }
-
     /**
      * input:  ...sx1fx2f...fxnΔ (where xi ∈ (`symbols` + Blank)*, s = `stop`, f = `from`)
      *                         ^
@@ -99,23 +98,70 @@ object Functions {
         (q2, Alph(s)) -> (q2, Alph(s), Right)
       )).flatten)
     }
-
+    
     /**
-     * moves over `symbols`, looks for any of the symbols in pairs, branches to given state if found.
-     * first symbol is skipped (like `nextBlank`).
+     * if input:    [#pi,...,pkΔ^n#aiΔ...Δak]
+     *               ^
+     *              [Δ]
+     *               ^
+     * then output: [Δ^p#pi+1,...,pkΔ^m#ai+1Δ...Δak]
+     *                  ^
+     *              [ΔpiΔaiΔ]
+     *                     ^
+     * if input:    [#Δ^n#] for some n >= 0
+     *               ^
+     *              [Δ]
+     *               ^
+     * then output: [Δ] (and reject) 
+     *               ^
+     *              [Δ]
+     *               ^
+     *
      */
-    def findOptions[A](symbols: Set[A], pairs: List[(TapeAlph[A], State[Int])], next: () => Int): TuringMachine[Int, A] = {
-      val List(q0, q1) = initStates(2, next)
-      TuringMachine(q0, Map(
-        (q0, Blank) -> (q1, Blank, Right),
-        (q1, Blank) -> (q1, Blank, Right),
-      ) ++ symbols.map(x => List(
-        (q0, Alph(x)) -> (q1, Alph(x), Right),
-        (q1, Alph(x)) -> (q1, Alph(x), Right)
-      )).flatten ++ pairs.map((a, q) => List(
-        (q0, a) -> (q0, a, Right),
-        (q1, a) -> (q, a, Stay)
-      )).flatten)
+    def loadParamsIterate[A](namesymbols: Set[A], valuesymbols: Set[A], comma: A, hash: A, next: () => Int): MultiMachine[Int, A] = {
+      // require(namesymbols.intersect(valuesymbols).isEmpty)
+      val List(q0, q1, qempty, qnonempty) = initStates(4, next)
+      
+      val whenEmpty = TMManip.workOn({
+        ControlFlow.sequence(List(
+          SimpleOps.replaceSymbol(Alph(hash), Blank, next)
+        ))
+      }, 0, 2)
+
+      val whenNonEmpty = {
+        val beforeMoveParam = TMManip.workOn(SimpleOps.replaceSymbol(Alph(hash), Blank, next), 0, 2)
+        val moveParam = MultiTapeOps.moveDownUntilSetOrBlank(namesymbols, Set(comma, hash), next)
+        val afterMoveParam = TMManip.workOn(ControlFlow.sequence(List(
+          SimpleOps.moveLeft(namesymbols + comma, next),
+          SimpleOps.replaceSymbol(Blank, Alph(hash), next),
+          SimpleOps.findAnySymbol(namesymbols + comma + hash, valuesymbols, next),
+          SimpleOps.moveLeft(valuesymbols, next)
+        )), 0, 2)
+        val moveValue = MultiTapeOps.moveDown2(valuesymbols, next)
+        val afterMoveValue = TMManip.workOn(ControlFlow.sequence(List(
+          SimpleOps.findSymbolRev(valuesymbols ++ namesymbols + comma, hash, next),
+          SimpleOps.replaceSymbol(Alph(hash), Blank, next),
+          SimpleOps.moveRight(Set(), next),
+          SimpleOps.replaceSymbol(Blank, Alph(hash), next)
+        )), 0, 2)
+        
+        ControlFlow.sequence(List(
+          beforeMoveParam, moveParam, afterMoveParam,
+          moveValue, afterMoveValue
+        ))
+      }
+      
+      val par = MultiMachine(q0, Map( // different from drawing
+        (q0, List(Alph(hash), Blank)) -> (q1, List(Alph(hash), Blank), List(Right, Stay)),
+        (q1, List(Blank, Blank)) -> (qempty, List(Blank, Blank), List(Left, Stay)), 
+        ) ++ namesymbols.map(s => 
+          (q1, List(Alph(s), Blank)) -> (qnonempty, List(Alph(s), Blank), List(Left, Stay))
+        ))
+
+      ControlFlow.insertMachines(par, List(
+        whenEmpty -> ControlFlow.MachineConnection(qempty, Reject, Reject),
+        whenNonEmpty -> ControlFlow.MachineConnection(qnonempty, Accept, Reject)
+      ))
     }
 
     /**
@@ -123,100 +169,26 @@ object Functions {
      *          ^
      *         [Δ]
      *          ^
-     * output: [Δ]
-     *          ^
+     * output: [ΔΔ^nΔ] (where n = |p1| + ... + |pk|)
+     *              ^
      *         [Δp1Δa1Δ...ΔpkΔakΔ]
      *                          ^
      */
     def loadParamsToEnv[A](namesymbols: Set[A], valuesymbols: Set[A], comma: A, hash: A, next: () => Int): MultiMachine[Int, A] = {
-      val prepare = TMManip.workOn({
-        ControlFlow.sequence(List(
-          SimpleOps.replaceSymbol(Blank, Alph(hash), next),
-          SimpleOps.nextBlank(namesymbols + comma + hash, next),
-          SimpleOps.replaceSymbol(Blank, Alph(hash), next),
-          SimpleOps.findSymbolRev(namesymbols + comma, hash, next)
+      val loop = {
+        val List(ql, qloadparamsiterate) = initStates(2, next)
+        val loadparamsiterate = loadParamsIterate(namesymbols, valuesymbols, comma, hash, next)
+        val par = MultiMachine(ql, Map(
+          (ql, List(Alph(hash), Blank)) -> (qloadparamsiterate, List(Alph(hash), Blank), List(Stay, Stay))
         ))
-      }, 0, 2)
-
-
-      val loopOnBlank = {
-        val moveParam = {
-          val prepareMove = TMManip.workOn(ControlFlow.sequence(List(
-            SimpleOps.findSymbolRev(namesymbols, hash, next),
-            SimpleOps.replaceSymbol(Alph(hash), Blank, next)
-          )), 0, 2)
-          val move = MultiTapeOps.moveDown2(namesymbols, next)
-          val afterMove = TMManip.workOn(SimpleOps.replaceSymbol(Blank, Alph(hash), next), 0, 2)
-          ControlFlow.sequence(List(prepareMove, move, afterMove))
-        }
-
-        val moveArg = {
-          val prepareMove = TMManip.workOn(SimpleOps.replaceSymbol(Alph(hash), Blank, next), 0, 2)
-          val move = MultiTapeOps.moveDown2(valuesymbols, next)
-          val afterMove = TMManip.workOn(SimpleOps.replaceSymbol(Blank, Alph(hash), next), 0, 2)
-
-          ControlFlow.sequence(List(prepareMove, move, afterMove))
-        }
-        
-        val findHash = TMManip.workOn(SimpleOps.findSymbol(namesymbols + comma, hash, next), 0, 2)
-        val findRevHash = TMManip.workOn(SimpleOps.findSymbolRev(namesymbols + comma, hash, next), 0, 2)
-
-        // remove hashes
-        val finish = TMManip.workOn(ControlFlow.sequence(List(
-          SimpleOps.findSymbol(Set(), hash, next),
-          SimpleOps.replaceSymbol(Alph(hash), Blank, next),
-          SimpleOps.findSymbolRev(Set(), hash, next),
-          SimpleOps.replaceSymbol(Alph(hash), Blank, next)
-        )), 0, 2)
-
-        ControlFlow.sequence(List(moveParam, findHash, moveArg, findRevHash, finish))
+        ControlFlow.insertMachine(par, loadparamsiterate, qloadparamsiterate, ql, Accept)
       }
 
-      val loopOnComma = {
-        val moveParam = {
-          val prepareMove = TMManip.workOn(ControlFlow.sequence(List(
-            SimpleOps.replaceSymbol(Alph(comma), Blank, next),
-            SimpleOps.findSymbolRev(namesymbols, hash, next),
-            SimpleOps.replaceSymbol(Alph(hash), Blank, next)
-          )), 0, 2)
-          val move = MultiTapeOps.moveDown2(namesymbols, next)
-          val afterMove = TMManip.workOn(SimpleOps.replaceSymbol(Blank, Alph(hash), next), 0, 2)
-          ControlFlow.sequence(List(prepareMove, move, afterMove))
-        }
+      val setup = TMManip.workOn(ControlFlow.sequence(List(
+        SimpleOps.replaceSymbol(Blank, Alph(hash), next),
+      )), 0, 2)
 
-        val moveArg = {
-          val prepareMove = TMManip.workOn(SimpleOps.replaceSymbol(Alph(hash), Blank, next), 0, 2)
-          val move = MultiTapeOps.moveDown2(valuesymbols, next)
-          val afterMove = TMManip.workOn(SimpleOps.replaceSymbol(Blank, Alph(hash), next), 0, 2)
-
-          ControlFlow.sequence(List(prepareMove, move, afterMove))
-        }
-        
-        val findHash = TMManip.workOn(SimpleOps.findSymbol(namesymbols + comma, hash, next), 0, 2)
-        val findRevHash = TMManip.workOn(SimpleOps.findSymbolRev(namesymbols + comma, hash, next), 0, 2)
-        ControlFlow.sequence(List(moveParam, findHash, moveArg, findRevHash))
-      }
-
-      val List(q0, qprepare, qfindeither, qlooponblank, qlooponcomma, qaftercommaloop, qafterblankloop) = initStates(7, next)
-      val findeither = TMManip.workOn(
-        findOptions(namesymbols + hash, List(
-          Alph(comma) -> qlooponcomma,
-          Blank -> qlooponblank,
-        ), next), 0, 2) // , -> accept, # -> reject
-      
-      val parent = MultiMachine[Int, A](q0, Map(
-        (qafterblankloop, List(Alph(hash), Blank)) -> (qfindeither, List(Alph(hash), Blank), List(Stay, Stay)),
-        (qaftercommaloop, List(Alph(hash), Blank)) -> (qfindeither, List(Alph(hash), Blank), List(Stay, Stay)),
-        (q0, List(Blank, Blank)) -> (qprepare, List(Blank, Blank), List(Stay, Stay),
-      )))
-
-      import ControlFlow._
-      insertMachines(parent, List(
-        prepare -> MachineConnection(qprepare, qfindeither, Reject),
-        findeither -> MachineConnection(qfindeither, Accept, Reject),
-        loopOnComma -> MachineConnection(qlooponcomma, qaftercommaloop, Reject),
-        loopOnBlank -> MachineConnection(qlooponblank, qafterblankloop, Reject)
-      ))
+      ControlFlow.sequence(setup, loop)
     }
   }
 
@@ -270,6 +242,7 @@ object Functions {
   def brancher[A](branches: List[Branch[A]], next: () => Int): TuringMachine[Int, A] = {
     require(branches.forall(_.code.nonEmpty))
     require(!areAmbiguous(branches))
+    require(branches.nonEmpty)
 
     val symbols = branches.map(_.code).flatten.toSet
 
@@ -328,18 +301,18 @@ object Functions {
    *         [ΔcΔ]
    *            ^
    */
-  def prepareFunctionCall[A](namesymbols: Set[A], valuesymbols: Set[A], codesymbols: Set[A], 
-                             comma: A, semicolon: A, hash: A, next: () => Int): MultiMachine[Int, A] = {
-    val loadcode = TMManip.workOn(
-      MultiTapeOps.moveDownUntil(codesymbols, semicolon, next),
-      List(0, 2), 3)
+  def prepareFunctionCall[A](namesymbols: Set[A], valuesymbols: Set[A], codesymbols: Set[A], comma: A, semicolon: A, hash: A, next: () => Int): MultiMachine[Int, A] = {
+    val movecode = TMManip.workOn(MultiTapeOps.moveDownUntilAndMarkBeginning(codesymbols, semicolon, hash, next), List(0, 2), 3)
     val loadenv = ControlFlow.sequence(
       TMManip.workOn(MultiTapeOps.moveDownUntil(namesymbols ++ valuesymbols + comma, semicolon, next), List(0, 1), 3),
       TMManip.workOn(Impl.replaceWithBlankBehindUntil(namesymbols ++ valuesymbols, hash, comma, semicolon, next), 1, 3)
     )
+    val loadparams = TMManip.workOn(Impl.loadParamsToEnv(namesymbols, valuesymbols, comma, hash, next), List(0, 1), 3)
+    val cleanhash = TMManip.workOn(ControlFlow.sequence(
+      SimpleOps.findSymbolRev(Set(), hash, next),
+      SimpleOps.replaceSymbol(Alph(hash), Blank, next)
+    ), 0, 3)
 
-    ControlFlow.sequence(List(
-      loadcode, loadenv
-    ))
+    ControlFlow.sequence(List(movecode, loadenv, loadparams, cleanhash))
   }
 }

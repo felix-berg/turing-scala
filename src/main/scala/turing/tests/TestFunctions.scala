@@ -55,6 +55,9 @@ object TestFunctions {
   private def randomStrings(n: Int, arr: Array[Char] = ('a' to 'z').toArray): List[List[Char]] = 
     (1 to n).map(_ => randomString(Random.between(1, 20), arr)).toList
 
+  private def randomTapes(n: Int, arr: Array[Char] = ('a' to 'z').toArray): List[List[TapeAlph[Char]]] = 
+    randomStrings(n, arr).map(s => s.map(c => Alph(c)))
+
   private def toTapeWithBlanks(xs: List[List[Char]]): List[TapeAlph[Char]] = 
     xs.map(x => Blank :: x.map(c => Alph(c))).flatten
 
@@ -142,6 +145,126 @@ object TestFunctions {
     }
   }
 
+  def loadParamsIterate(): Unit = {
+    val namesymbols = ('a' to 'z').toSet
+    val valuesymbols = Set('1', 'T', 'F')
+    val machine = Functions.Impl.loadParamsIterate(namesymbols, valuesymbols, ',', '#', newNext())
+    { // last iteration
+      val n = Random.between(1, 100)
+      val right = List(
+        Alph('#') :: (1 to n).map(_ => Blank).toList
+        , Nil)
+      val left = List(Nil, Nil)
+      val expleft = List(Nil, Nil)
+      val expright = List(Nil, Nil)
+
+      testMachine(machine, 
+        MultiConfig(left, machine.init, right),
+        MultiConfig(expleft, Reject, expright)
+      )
+    }
+    { // empty params case
+      val left = List(Nil, Nil)
+      val right = List(
+        List(Alph('#')), Nil
+      )
+      val expright = List(Nil, Nil)
+      val expleft = List(Nil, Nil)
+      testMachine(machine, 
+        MultiConfig(left, machine.init, right),
+        MultiConfig(expleft, Reject, expright))
+    }
+    { // middle iteration
+      val m = Random.between(3, 7)
+      
+      val ps = randomTapes(m, namesymbols.toArray)
+      val as = randomTapes(m, valuesymbols.toArray)
+
+      val psbefore = ps.map(s => Alph(',') :: s).flatten.tail
+      val psafter = ps.drop(1).map(s => Alph(',') :: s).flatten.tail
+
+      val pi = ps.head
+      val ai = as.head
+
+      val asbefore = as.map(s => Blank :: s).flatten.tail
+      val asafter = as.drop(1).map(s => Blank :: s).flatten.tail
+
+      val n = Random.between(1, 10)
+      val middle = (1 to n).map(_ => Blank).toList
+
+      val right = List(
+        Alph('#') :: psbefore ++ middle ++ List(Blank) ++ asbefore,
+        Nil
+      )
+
+      val blankpi = pi.map(_ => Blank)
+      val blankai = ai.map(_ => Blank)
+
+      val expleft = List(
+        (Blank :: blankpi).reverse,
+        (Blank :: pi ++ List(Blank) ++ ai).reverse
+      )
+
+
+      val expright = List(
+        List(Alph('#')) ++  psafter ++ middle ++ List(Blank) ++ blankai ++ List(Blank) ++ asafter,
+        Nil
+      )
+
+      testMachine(machine, 
+        MultiConfig(List(Nil, Nil), machine.init, right),
+        MultiConfig(expleft, Accept, expright)
+      )
+    }
+  }
+
+  def loadParamsToEnv(): Unit = {
+    val namesymbols = ('a' to 'z').toSet
+    val valuesymbols = Set('1', 'T', 'F')
+    val machine = Functions.Impl.loadParamsToEnv(namesymbols, valuesymbols, ',', '#', newNext())
+    { // |ps| = 0
+      testMachine(machine, 
+        MultiConfig(List(Nil, Nil), machine.init, List(Nil, Nil)),
+        MultiConfig(List(Nil, Nil), Accept, List(Nil, Nil))
+      )
+    } 
+    { // |ps| = 1
+      val p = randomTape(Random.between(1, 8), namesymbols.toArray)
+      val a = randomTape(Random.between(1, 8), valuesymbols.toArray)
+      val right = List(Blank :: p ++ List(Blank) ++ a, Nil)
+      val expright = List(Blank, Nil)
+      val expleft = List(
+        (Blank :: p.map(_ => Blank)).reverse, 
+        (Blank :: p ++ List(Blank) ++ a).reverse
+      )
+
+      testMachine(machine,
+        MultiConfig(List(Nil, Nil), machine.init, right),
+        MultiConfig(expleft, Accept, List(Nil, Nil)))
+    }
+    { // |ps| > 1
+      val k = Random.between(1, 7)
+      val ps = randomStrings(k, namesymbols.toArray)
+      val as = randomStrings(k, valuesymbols.toArray)
+      
+      val pscommas = ps.map(param => Alph(',') :: param.map(c => Alph(c))).flatten.tail
+      val args = as.map(arg => Blank :: arg.map(c => Alph(c))).flatten
+      val result = ps.zip(as).map((param, arg) => Blank :: param.map(c => Alph(c)) ++ List(Blank) ++ arg.map(c => Alph(c))).flatten
+      val right = List(Blank :: pscommas ++ args, Nil)
+      val left = List(Nil, Nil)
+
+      val expright = List(Nil, Nil)
+      val expleft = List(
+        (Blank :: (1 to pscommas.size).map(_ => Blank).toList).reverse,
+        result.reverse
+      )
+      
+      testMachine(machine, 
+        MultiConfig(left, machine.init, right),
+        MultiConfig(expleft, Accept, expright))
+    }
+  }
+
   def replaceBehindUntil(): Unit = {
     val garbage = randomStrings(10).map(s => Blank :: s.map(c => Alph(c))).flatten
     val symbols = ('a' to 'z').toSet
@@ -156,87 +279,8 @@ object TestFunctions {
     testMachine(machine, left, Nil, expleft, Nil)
   }
 
-  private def findOptions(): Unit = {
-    val symbols = ('a' to 'z').toSet
-    val machine = Functions.Impl.findOptions(symbols, List(Alph('A') -> Accept, Alph('R') -> Reject), newNext())
-    val garbage = randomTape(Random.between(1, 100), ('a' to 'z').toArray)
-    {
-      val x = randomTape(Random.between(1, 10), symbols.toArray)
-      val right = Alph('f') :: x ++ List(Alph('A')) ++ garbage
-      val expleft = (Alph('f') :: x).reverse
-      val expright = Alph('A') :: garbage
-      testMachine(machine, Nil, right, expleft, expright, Accept)
-    }
-    {
-      val x = randomTape(Random.between(1, 10), symbols.toArray)
-      val right = Alph('f') :: x ++ List(Alph('R')) ++ garbage
-      val expleft = (Alph('f') :: x).reverse
-      val expright = Alph('R') :: garbage
-      printRunConfiguration(machine, Configuration(Nil, machine.init, right), 100)
-      testMachine(machine, Nil, right, expleft, expright, Reject)
-    }
-    // {
-    //   val x = Nil
-    //   val right = Alph('f') :: x ++ List(Alph('R')) ++ garbage
-    //   val expleft = (Alph('f') :: x).reverse
-    //   val expright = Alph('R') :: garbage
-    //   testMachine(machine, Nil, right, expleft, expright, Reject)
-    // }
-    // {
-    //   val x = Nil
-    //   val right = Alph('f') :: x ++ List(Alph('A')) ++ garbage
-    //   val expleft = (Alph('f') :: x).reverse
-    //   val expright = Alph('A') :: garbage
-    //   testMachine(machine, Nil, right, expleft, expright, Accept)
-    // }
-    // {
-    //   val x = Nil
-    //   val right = Alph('A') :: x ++ List(Alph('A')) ++ garbage
-    //   val expleft = (Alph('A') :: x).reverse
-    //   val expright = Alph('A') :: garbage
-    //   testMachine(machine, Nil, right, expleft, expright, Accept)
-    // }
-    // {
-    //   val x = Nil
-    //   val right = Alph('R') :: x ++ List(Alph('A')) ++ garbage
-    //   val expleft = (Alph('R') :: x).reverse
-    //   val expright = Alph('A') :: garbage
-    //   testMachine(machine, Nil, right, expleft, expright, Accept)
-    // }
-  }
-
-  private def loadParamsToEnv(): Unit = {
-    val namesymbols = ('a' to 'z').toSet
-    val valuesymbols = Set('1', 'T', 'F')
-    val machine = Functions.Impl.loadParamsToEnv(namesymbols, valuesymbols, ',', '#', newNext())
-    // TODO: { // |ps| = 0
-    //   
-    // } 
-    { // |ps| > 1
-      val k = Random.between(1, 7)
-      val ps = randomStrings(k, namesymbols.toArray)
-      val as = randomStrings(k, valuesymbols.toArray)
-      
-      val pscommas = ps.map(param => Alph(',') :: param.map(c => Alph(c))).flatten.tail
-      val args = as.map(arg => Blank :: arg.map(c => Alph(c))).flatten
-      val result = ps.zip(as).map((param, arg) => Blank :: param.map(c => Alph(c)) ++ List(Blank) ++ arg.map(c => Alph(c))).flatten
-      val right = List(Blank :: pscommas ++ args, Nil)
-      val left = List(Nil, Nil)
-      val expright = List(Nil, Nil)
-      val expleft = List(Nil, result.reverse)
-
-      testMachine(machine, 
-        MultiConfig(left, machine.init, right),
-        MultiConfig(expleft, Accept, expright))
-    }
-  }
-
-  private def prepareFunctionCall(): Unit = {
-    { // env >= 1, ps >=1
-      val n = Random.between(1, 4)
-      val m = Random.between(1, 4)
-      val k = Random.between(1, 4)
-      
+  def prepareFunctionCall(): Unit = {
+    def testCase(n: Int, m: Int, k: Int): Unit = {
       val code = randomString(Random.between(1, 5), Array('A', 'B'))
       val ps = randomStrings(k)
       val xs = randomStrings(n)
@@ -259,17 +303,41 @@ object TestFunctions {
       val left = List(Nil, env.reverse, Nil)
       val right = List(value ++ arguments, Nil, Nil)
 
-      val yenv = Blank :: makeEnvironment(ys, us).drop(1) // remove #
+      val venv = Blank :: makeEnvironment(xs, vs).drop(1) // remove #
       val penv = Blank :: makeEnvironment(ps, as).drop(1) 
-      val newenv = env ++ yenv ++ penv
-      val expleft = List(Nil, newenv.reverse, (Blank :: code).reverse)
+      val newenv = env ++ venv ++ (if(k == 0) Nil else penv)
+      val expleft = List(Nil, newenv.reverse, (Blank :: code.map(c => Alph(c))).reverse)
       val expright = List(Nil, Nil, Nil)
 
       testMachine(machine,
         MultiConfig(left, machine.init, right),
-        MultiConfig(Nil, Accept, Nil)
+        MultiConfig(expleft, Accept, expright)
       )
     }
-    // TODO: empty env, params
+
+    {
+      val n = Random.between(1, 4)
+      val m = Random.between(1, 4)
+      val k = Random.between(1, 4)
+      testCase(n, m, k)
+    }
+    { 
+      val m = Random.between(1, 4)
+      val k = Random.between(1, 4)
+      testCase(0, m, k)
+    }
+    { 
+      val n = Random.between(1, 4)
+      val k = Random.between(1, 4)
+      testCase(n, 0, k)
+    }
+    { 
+      val n = Random.between(1, 4)
+      val m = Random.between(1, 4)
+      testCase(n, m, 0)
+    }
+    {
+      testCase(0, 0, 0)
+    }
   }
 }

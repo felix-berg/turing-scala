@@ -11,22 +11,35 @@ object TuringCompiler {
   val FALSE: Char = 'F'
   val TRUE: Char = 'T'
   val HASH: Char = '#'
+  val COMMA: Char = ','
+  val SEMICOLON: Char = ';'
   val SPECIAL: Char = 'A'
+  val CODEZERO: Char = '&'
+  val CODEONE: Char = '%'
+  val CODELENGTH: Int = 7
 
-  val VALIDNAMESYMBOLS: Set[Char] = ('1' to '9').toSet ++ ('a' to 'z').toSet ++ ('A' to 'Z').toSet + '_'
+  val VALIDNAMESYMBOLS: Set[Char] = ('a' to 'z').toSet
+  val VALIDCODESYMBOLS: Set[Char] = Set(CODEONE, CODEZERO)
   val VALIDVALUESYMBOLS: Set[Char] = Set(ONE, FALSE, TRUE)
 
-  private def onMainTape(m: TuringMachine[Int, Char]): MultiMachine[Int, Char] = 
-    TMManip.workOn(m, 0, 2)
+  val MAINTAPE: Int = 0
+  val ENVTAPE: Int = 1
+  val CALLTAPE: Int = 2
+  val NUMTAPES: Int = 3
 
-  private def binOpExp(leftexp: Exp, rightexp: Exp, op: BinOp, next: () => Int): MultiMachine[Int, Char] = { 
+  case class DeclaredFunctions(var map: Map[String, MultiMachine[Int, Char]], branchState: NonHalt[Int])
+
+  private def onMainTape(m: TuringMachine[Int, Char]): MultiMachine[Int, Char] = 
+    TMManip.workOn(m, MAINTAPE, NUMTAPES)
+
+  private def binOpExp(leftexp: Exp, rightexp: Exp, op: BinOp, functions: DeclaredFunctions, next: () => Int): MultiMachine[Int, Char] = { 
     def composeMachine(lm: MultiMachine[Int, Char], rm: MultiMachine[Int, Char], op: TuringMachine[Int, Char], symbols: Set[Char]): MultiMachine[Int, Char] = {
       val nb = onMainTape(ControlFlow.nextBlank(symbols, next))
       val pb = onMainTape(ControlFlow.prevBlank(symbols, next))
       ControlFlow.sequence(List(lm, nb, rm, pb, onMainTape(op)))
     }
 
-    val (lm, rm) = (compile(leftexp, next), compile(rightexp, next))
+    val (lm, rm) = (compileImpl(leftexp, functions, next), compileImpl(rightexp, functions, next))
     op match {
       case PlusBinOp() => composeMachine(lm, rm, Unary.add(ONE, next), Set(ONE))
       case MinusBinOp() => composeMachine(lm, rm, Unary.sub(ONE, HASH, next), Set(ONE))
@@ -38,44 +51,96 @@ object TuringCompiler {
       case _ => ???
     }
   }
+  
+
+  def addFunction(functions: DeclaredFunctions, bodyMachine: MultiMachine[Int, Char]): String = {
+    val n = functions.map.size
+    val bin = n.toBinaryString.map {
+      case '0' => CODEZERO
+      case '1' => CODEONE
+      case _ => ???
+    }.reverse.padTo(CODELENGTH, CODEZERO).reverse // pad to CODELENGTH
+
+    functions.map = functions.map + (bin -> bodyMachine)
+    bin
+  }
+
+  def compileImpl(e: Exp, functions: DeclaredFunctions, next: () => Int): MultiMachine[Int, Char] = e match {
+    case IntLit(c) => 
+      onMainTape(SimpleOps.nSymbols(ONE, c, next))
+
+    case BoolLit(b) => 
+      onMainTape(SimpleOps.nSymbols(if (b) TRUE else FALSE, 1, next))
+
+    case BinOpExp(leftexp, op, rightexp) => 
+      binOpExp(leftexp, rightexp, op, functions, next)
+
+    case IfThenElseExp(condexp, thenexp, elseexp) =>
+      Bool.ifThenElse(compileImpl(condexp, functions, next), compileImpl(thenexp, functions, next), compileImpl(elseexp, functions, next), TRUE, FALSE, next)
+
+    case BlockExp(decls, Nil, Nil, Nil, List(exp)) =>
+      def evalDeclAndPush(decl: ValDecl): MultiMachine[Int, Char] = {
+        // FIXME: doesn't handle not found name
+        val writename = onMainTape(SimpleOps.write(decl.x.toList, next))
+        val nb = onMainTape(ControlFlow.nextBlank(VALIDNAMESYMBOLS, next))
+        val pb = onMainTape(ControlFlow.prevBlank(VALIDNAMESYMBOLS, next))
+        val dm = compileImpl(decl.exp, functions, next)
+        val push = TMManip.workOn(EnvStack.push(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, HASH, next), List(MAINTAPE, ENVTAPE), NUMTAPES)
+        ControlFlow.sequence(List(writename, nb, dm, pb, push))
+      }
+      val em = compileImpl(exp, functions, next)
+      val pops = decls.map(_ => TMManip.workOn(EnvStack.pop(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, next), List(MAINTAPE, ENVTAPE), NUMTAPES))
+      ControlFlow.sequence(decls.map(evalDeclAndPush) ++ List(em) ++ pops)
+
+    case VarExp(x) =>
+      val writename = onMainTape(SimpleOps.write(x.toList, next))
+      val get = TMManip.workOn(EnvStack.get(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, HASH, next), List(MAINTAPE, ENVTAPE), NUMTAPES)
+      ControlFlow.sequence(List(writename, get))
+
+    case UnOpExp(NotUnOp(), exp) =>
+      ControlFlow.sequence(compileImpl(exp, functions, next), onMainTape(Bool.not(TRUE, FALSE, next)))
+
+    case LambdaExp(params, body) => 
+      val bodyMachine = compileImpl(body, functions, next)
+      val code = addFunction(functions, bodyMachine)
+      TMManip.workOn(
+        Functions.functionValue(params.map(p => p.x.toList), code.toList, VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS, HASH, COMMA, SEMICOLON, next),
+        List(MAINTAPE, ENVTAPE), NUMTAPES)
+    
+    case CallExp(funexp, args) =>
+      val machines = compileImpl(funexp, functions, next) :: args.map(arg => compileImpl(arg, functions, next))
+      val allsymbs = VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS + SEMICOLON + COMMA
+      val putParts = machines.map(m => List(m, onMainTape(SimpleOps.nextBlank(allsymbs, next)))).flatten.dropRight(1) // remove last nextblank
+      val goBack = (1 to machines.size - 1).map(_ => onMainTape(SimpleOps.prevBlank(allsymbs, next)))
+      val preparefunccall = Functions.prepareFunctionCall(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, VALIDCODESYMBOLS, COMMA, SEMICOLON, HASH, next)
+      val call = {
+        val q0 = NonHalt(next()) // TODO BAD BAD BAD
+        TMManip.workOn(TuringMachine[Int, Char](q0, Map((q0, Blank) -> (functions.branchState, Blank, Stay))), CALLTAPE, NUMTAPES)
+      }
+      ControlFlow.sequence(
+        putParts ++ goBack ++ List(preparefunccall, call)
+      )
+
+    case _ => ???
+  }
+
+  private def addFunctionBrancher(m: MultiMachine[Int, Char], functions: DeclaredFunctions, next: () => Int): MultiMachine[Int, Char] = {
+    val branches = functions.map.map {
+      case (code, machine) => Functions.Branch(code.toList, machine.init)
+    }.toList
+    val brancher = ControlFlow.insertMachines(
+      TMManip.workOn(Functions.brancher(branches, next), CALLTAPE, NUMTAPES), 
+      functions.map.map {
+        case (code, machine) => machine -> ControlFlow.MachineConnection(machine.init, Accept, Reject)
+      }.toList
+    )
+    ControlFlow.insertMachine(m, brancher, functions.branchState, Accept, Reject)
+  }
 
   def compile(e: Exp, next: () => Int): MultiMachine[Int, Char] = {
-    e match {
-      case IntLit(c) => 
-        onMainTape(SimpleOps.nSymbols(ONE, c, next))
-
-      case BoolLit(b) => 
-        onMainTape(SimpleOps.nSymbols(if (b) TRUE else FALSE, 1, next))
-
-      case BinOpExp(leftexp, op, rightexp) => 
-        binOpExp(leftexp, rightexp, op, next)
-
-      case IfThenElseExp(condexp, thenexp, elseexp) =>
-        Bool.ifThenElse(compile(condexp, next), compile(thenexp, next), compile(elseexp, next), TRUE, FALSE, next)
-
-      case BlockExp(decls, Nil, Nil, Nil, List(exp)) =>
-        def evalDeclAndPush(decl: ValDecl): MultiMachine[Int, Char] = {
-          // FIXME: doesn't handle not found name
-          val writename = onMainTape(SimpleOps.write(decl.x.toList, next))
-          val nb = onMainTape(ControlFlow.nextBlank(VALIDNAMESYMBOLS, next))
-          val pb = onMainTape(ControlFlow.prevBlank(VALIDNAMESYMBOLS, next))
-          val dm = compile(decl.exp, next)
-          val push = EnvStack.push(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, HASH, next)
-          ControlFlow.sequence(List(writename, nb, dm, pb, push))
-        }
-        val em = compile(exp, next)
-        val pops = decls.map(_ => EnvStack.pop(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, next))
-        ControlFlow.sequence(decls.map(evalDeclAndPush) ++ List(em) ++ pops)
-
-      case VarExp(x) =>
-        val writename = onMainTape(SimpleOps.write(x.toList, next))
-        val get = EnvStack.get(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, HASH, next)
-        ControlFlow.sequence(List(writename, get))
-
-      case UnOpExp(NotUnOp(), exp) =>
-        ControlFlow.sequence(compile(exp, next), onMainTape(Bool.not(TRUE, FALSE, next)))
-
-      case _ => ???
-    }
+    val functions = DeclaredFunctions(Map(), NonHalt(next()))
+    val machine = compileImpl(e, functions, next)
+    if (functions.map.isEmpty) machine else
+    addFunctionBrancher(machine, functions, next)
   }
 }

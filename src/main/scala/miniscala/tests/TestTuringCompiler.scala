@@ -22,18 +22,19 @@ object TestTuringCompiler {
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
 
-    testMachine(m, List(toTape(left).reverse, List(Alph(HASH))), List(toTape(right), Nil), List(toTape(expleft).reverse, List(Alph(HASH))), List(toTape(expright), Nil), Accept)
+    testMachine(m, List(toTape(left).reverse, List(Alph(HASH)), Nil), List(toTape(right), Nil, Nil), List(toTape(expleft).reverse, List(Alph(HASH)), Nil), List(toTape(expright), Nil, Nil), Accept)
   }
 
-  private def testProgram(prog: String, expright: String): Unit = 
+  private def testProgram(prog: String, expright: String): Unit = {
     testProgram(prog, "", "", "", expright)
+  }
 
   private def simProgram(prog: String, left: String = "", right: String = ""): Unit = {
     val next = newNext()
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
     
-    printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, List(Alph(HASH))), m.init, List(toTape(right), Nil)), 100)
+    printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, List(Alph(HASH)), Nil), m.init, List(toTape(right), Nil, Nil)), 50)
   }
 
   def constants(): Unit = {
@@ -125,9 +126,6 @@ object TestTuringCompiler {
   }
 
   def combinations(): Unit = {
-    simProgram("419 * 14")
-    // simProgram("{ val x = 5; val y = 4; x + { val x = 3; x + y } + y}")
-
     testProgram(
       """{ val x = 10;
          | val y = x * 2;
@@ -135,5 +133,11 @@ object TestTuringCompiler {
          | y + z }""".stripMargin, 
          "_" + (1 to 220).map(_ => '1').mkString
     )
+  }
+
+  def lambdas(): Unit = {
+    val zeroCode = (1 to CODELENGTH).map(_ => CODEZERO).mkString
+    testProgram("(x, y) => 1 + 2", s"_$zeroCode;;x,y")
+    simProgram("((x, y) => x + y)(1, 2)")
   }
 }

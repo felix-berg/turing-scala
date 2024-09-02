@@ -107,12 +107,16 @@ object Bool {
   }
 
   def ifThenElse[A](cond: MultiMachine[Int, A], thn: MultiMachine[Int, A], els: MultiMachine[Int, A], t: A, f: A, next: () => Int): MultiMachine[Int, A] = {
+    val n = numTapes(cond)
+    val padTape = (s: TapeAlph[A]) => s :: (1 to n - 1).map(_ => Blank).toList
+    val padDir = (d: Direction) => d :: (1 to n - 1).map(_ => Stay).toList
+
     val List(q0, q1, q2, qcond, qthn, qels) = initStates(6, next)
     val par = MultiMachine[Int, A](q0, Map(
-      (q0, List(Blank, Blank)) -> (qcond, List(Blank, Blank), List(Stay, Stay)),
-      (q1, List(Blank, Blank)) -> (q2, List(Blank, Blank), List(Right, Stay)),
-      (q2, List(Alph(t), Blank)) -> (qthn, List(Blank, Blank), List(Left, Stay)),
-      (q2, List(Alph(f), Blank)) -> (qels, List(Blank, Blank), List(Left, Stay))
+      (q0, padTape(Blank)) -> (qcond, padTape(Blank), padDir(Stay)),
+      (q1, padTape(Blank)) -> (q2, padTape(Blank), padDir(Right)),
+      (q2, padTape(Alph(t))) -> (qthn, padTape(Blank), padDir(Left)),
+      (q2, padTape(Alph(f))) -> (qels, padTape(Blank), padDir(Left))
     ))
     insertMachines(par, List(
       (cond, MachineConnection(qcond, q1, Reject)),

@@ -21,7 +21,6 @@ object TestAll {
       "main"
     )
 
-    // scala.util.Random.setSeed(System.currentTimeMillis())
     val packages = List(
       "turing.tests",
       "miniscala.tests"

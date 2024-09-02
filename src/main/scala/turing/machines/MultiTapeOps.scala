@@ -116,4 +116,30 @@ object MultiTapeOps {
       (q1, List(Alph(s), Blank)) -> (q1, List(Blank, Alph(s)), List(Right, Right))
     ))
   }
+
+  // same as `moveDownUntil` but stop at any symbol in `stop` and at blank (not including the first one)
+  def moveDownUntilSetOrBlank[A](symbols: Set[A], stop: Set[A], next: () => Int): MultiMachine[Int, A] = {
+    require(symbols.intersect(stop).isEmpty)
+    val List(q0, q1) = initStates(2, next)
+    MultiMachine(q0, Map(
+      (q0, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Right, Right)),
+      (q1, List(Blank, Blank)) -> (Accept, List(Blank, Blank), List(Stay, Stay))
+    ) ++ symbols.map(s => 
+      (q1, List(Alph(s), Blank)) -> (q1, List(Blank, Alph(s)), List(Right, Right))
+    ) ++ stop.map(s => 
+      (q1, List(Alph(s), Blank)) -> (Accept, List(Blank, Blank), List(Stay, Stay))
+    ))
+  }
+
+  // same as `moveDownUntil` but mark starting point
+  def moveDownUntilAndMarkBeginning[A](symbols: Set[A], stop: A, marker: A, next: () => Int): MultiMachine[Int, A] = {
+    val List(q0, q1) = initStates(2, next)
+    MultiMachine(q0, Map(
+      (q0, List(Blank, Blank)) -> (q1, List(Alph(marker), Blank), List(Right, Right)),
+      (q1, List(Alph(stop), Blank)) -> (Accept, List(Blank, Blank), List(Stay, Stay)),
+      (q1, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Right, Right))
+    ) ++ symbols.map(s => 
+      (q1, List(Alph(s), Blank)) -> (q1, List(Blank, Alph(s)), List(Right, Right))
+    ))
+  }
 }

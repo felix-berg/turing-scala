@@ -245,6 +245,21 @@ object SimpleOps {
   def findSymbolRev[A](symbols: Set[A], target: A, next: () => Int): TuringMachine[Int, A] = 
     mirror(findSymbol(symbols, target, next))
 
+  def findAnySymbol[A](ignore: Set[A], targets: Set[A], next: () => Int): TuringMachine[Int, A] = {
+    require(ignore.intersect(targets).isEmpty)
+    val List(q0, q1) = initStates(2, next)
+    TuringMachine(q0, Map(
+      (q0, Blank) -> (q1, Blank, Right),
+      (q1, Blank) -> (q1, Blank, Right),
+    ) ++ ignore.map(s => List(
+      (q0, Alph(s)) -> (q1, Alph(s), Right),
+      (q1, Alph(s)) -> (q1, Alph(s), Right)
+    )).flatten ++ targets.map(s => List(
+      (q1, Alph(s)) -> (Accept, Alph(s), Stay),
+      (q0, Alph(s)) -> (q1, Alph(s), Right)
+    )).flatten)
+  }
+
   def nextBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
     val (q0, q1) = (NonHalt(next()), NonHalt(next()))
     val table = symbols.map(s => Alph(s))
@@ -277,4 +292,17 @@ object SimpleOps {
 
   def prevBlankWithStop[A](symbols: Set[A], stop: A, next: () => Int): TuringMachine[Int, A] = 
     mirror(nextBlankWithStop(symbols, stop, next))
+
+
+  def moveRight[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
+    val List(q0) = initStates(1, next)
+    TuringMachine(q0, Map(
+      (q0, Blank) -> (Accept, Blank, Right)
+    ) ++ symbols.map(s => 
+      (q0, Alph(s)) -> (Accept, Alph(s), Right)
+    ).toMap)
+  }
+
+  def moveLeft[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = 
+    mirror(moveRight(symbols, next))
 }

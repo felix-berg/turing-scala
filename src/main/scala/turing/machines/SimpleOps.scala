@@ -103,13 +103,19 @@ object SimpleOps {
     )
   }
 
-  def replaceSymbols[A](from: TapeAlph[A], to: TapeAlph[A], next: () => Int): TuringMachine[Int, A] = {
+  def replaceSymbol[A](from: TapeAlph[A], to: TapeAlph[A], next: () => Int): TuringMachine[Int, A] = {
     val List(q0) = initStates(1, next)
     TuringMachine(q0, Map(
       (q0, from) -> (Accept, to, Stay)
     ))
   }
 
+  /**
+   * input:  Δx
+   *         ^
+   * output: Δx (reject iff x = "")
+   *         ^
+   */
   def isEmpty[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
     val (q0, q1) = (NonHalt(next()), NonHalt(next()))
     TuringMachine(q0, Map(
@@ -222,6 +228,23 @@ object SimpleOps {
       } ++ sstr.toSet.map(s => (qf, s) -> (qf, s, Left)))
     }
 
+  def findSymbol[A](symbols: Set[A], target: A, next: () => Int): TuringMachine[Int, A] = {
+    require(!symbols.contains(target))
+    val List(q0, q1) = initStates(2, next)
+    TuringMachine(q0, Map(
+      (q0, Blank) -> (q1, Blank, Right),
+      (q1, Blank) -> (q1, Blank, Right),
+      (q1, Alph(target)) -> (Accept, Alph(target), Stay),
+      (q0, Alph(target)) -> (q1, Alph(target), Right)
+    ) ++ symbols.map(s => List(
+      (q0, Alph(s)) -> (q1, Alph(s), Right),
+      (q1, Alph(s)) -> (q1, Alph(s), Right)
+    )).flatten)
+  }
+
+  def findSymbolRev[A](symbols: Set[A], target: A, next: () => Int): TuringMachine[Int, A] = 
+    mirror(findSymbol(symbols, target, next))
+
   def nextBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = {
     val (q0, q1) = (NonHalt(next()), NonHalt(next()))
     val table = symbols.map(s => Alph(s))
@@ -237,4 +260,21 @@ object SimpleOps {
 
   def prevBlank[A](symbols: Set[A], next: () => Int): TuringMachine[Int, A] = 
     mirror(nextBlank(symbols, next))
+
+  def nextBlankWithStop[A](symbols: Set[A], stop: A, next: () => Int): TuringMachine[Int, A] = {
+    val (q0, q1) = (NonHalt(next()), NonHalt(next()))
+    val table = (symbols - stop).map(s => Alph(s))
+      .foldLeft[TransTable[Int, A]](Map())((tt, s) => tt +
+        ((q0, s) -> (q1, s, Right)) +
+        ((q1, s) -> (q1, s, Right))
+      ) + ((q0, Blank) -> (q1, Blank, Right))
+        + ((q1, Blank) -> (Accept, Blank, Stay))
+        + ((q0, Alph(stop)) -> (Reject, Alph(stop), Stay))
+        + ((q1, Alph(stop)) -> (Reject, Alph(stop), Stay))
+
+    TuringMachine(q0, table)
+  }
+
+  def prevBlankWithStop[A](symbols: Set[A], stop: A, next: () => Int): TuringMachine[Int, A] = 
+    mirror(nextBlankWithStop(symbols, stop, next))
 }

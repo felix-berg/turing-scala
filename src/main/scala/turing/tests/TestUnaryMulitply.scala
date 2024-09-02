@@ -181,7 +181,7 @@ object TestUnaryMulitply {
     testMachine(machine, left, right, expleft, expright)
   }
 
-  def testMulFinish(): Unit = {
+  private def testMulFinish(): Unit = {
     // FIXME: flaky
     val next = newNext()
     val machine = Unary.MulImpl.mulFinish('1', '#', next)

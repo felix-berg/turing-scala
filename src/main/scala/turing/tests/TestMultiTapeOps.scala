@@ -5,6 +5,7 @@ object TestMultiTapeOps {
   import turing.machines.MultiTapeOps
   import turing.tests.TestUtils._
   import turing.TMSimulate._
+  import scala.util.Random
 
   def testCopyDown(): Unit = {
     val set = ('a' to 'z').toSet
@@ -56,5 +57,23 @@ object TestMultiTapeOps {
       conf = step(m, conf)
     }
     println(conf)
+  }
+
+  def moveDown(): Unit = {
+    // TODO
+    // val machine = MultiTapeOps.moveDown(('a' to 'z').toSet, 
+  }
+
+  def moveDownUntil(): Unit = {
+    val machine = MultiTapeOps.moveDownUntil(('a' to 'z').toSet, ';', newNext())
+    val garbage = (1 to Random.between(1, 16)).map(_ => Blank :: randomTape(Random.between(1, 5), ('1' to 'z').toArray)).flatten.toList
+    val words = (1 to Random.between(1, 16)).map(_ => Blank :: randomTape(Random.between(1, 5), ('a' to 'z').toArray)).flatten.toList ++ List(Alph(';'))
+    val left = List(Nil, Nil)
+    val right = List(words, Nil)
+    val expleft = List(words.map(_ => Blank).dropRight(1), (words.dropRight(1)).reverse)
+    val expright = List(Nil, Nil)
+    testMachine(machine, 
+      MultiConfig(left, machine.init, right),
+      MultiConfig(expleft, Accept, expright))
   }
 }

@@ -49,4 +49,71 @@ object MultiTapeOps {
         ((q2, List(s, s)) -> (q2, List(s, s), List(Left, Left)))
     }))
   }
+  
+  /**
+   * input:  [Δx]
+   *          ^
+   *         [Δ]
+   *          ^
+   * output: [Δ]
+   *          ^
+   *         [Δx]
+   *          ^
+   */
+  def moveDown[A](symbols: Set[A], next: () => Int): MultiMachine[Int, A] = {
+    val List(q0, q1, q2) = initStates(3, next)
+    val table: MultiTable[Int, A] = Map(
+      (q0, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Right, Right)),
+      (q1, List(Blank, Blank)) -> (q2, List(Blank, Blank), List(Left, Left)),
+      (q2, List(Blank, Blank)) -> (Accept, List(Blank, Blank), List(Stay, Stay)),
+    )
+
+    MultiMachine(q0, symbols.foldLeft(table)((tt, symb) => {
+      val s = Alph(symb)
+      tt +
+        ((q1, List(s, Blank)) -> (q1, List(Blank, s), List(Right, Right))) +
+        ((q2, List(Blank, s)) -> (q2, List(Blank, s), List(Left, Left)))
+    }))
+  }
+
+  /**
+   * input:  [Δx]
+   *          ^
+   *         [Δ]
+   *          ^
+   * output: [ΔΔ^nΔ] (where n = |x|)
+   *              ^
+   *         [Δx]
+   *          ^
+   */
+  def moveDown2[A](symbols: Set[A], next: () => Int): MultiMachine[Int, A] = {
+    val List(q0, q1) = initStates(2, next)
+    MultiMachine(q0, Map(
+      (q0, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Right, Right)),
+      (q1, List(Blank, Blank)) -> (Accept, List(Blank, Blank), List(Stay, Stay))
+    ) ++ symbols.map(s => List(
+      (q1, List(Alph(s), Blank)) -> (q1, List(Blank, Alph(s)), List(Right, Right))
+    )).flatten)
+  }
+
+  /**
+   * input:  [Δx1Δx2Δ...Δxn;...]
+   *          ^
+   *         [Δ]
+   *          ^
+   * output: [ΔΔΔΔΔΔΔΔΔΔΔΔΔΔ...]
+   *                       ^
+   *         [Δx1Δx2Δ...ΔxnΔ]
+   *                       ^
+   */
+  def moveDownUntil[A](symbols: Set[A], stop: A, next: () => Int): MultiMachine[Int, A] = {
+    val List(q0, q1) = initStates(2, next)
+    MultiMachine(q0, Map(
+      (q0, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Right, Right)),
+      (q1, List(Alph(stop), Blank)) -> (Accept, List(Blank, Blank), List(Stay, Stay)),
+      (q1, List(Blank, Blank)) -> (q1, List(Blank, Blank), List(Right, Right))
+    ) ++ symbols.map(s => 
+      (q1, List(Alph(s), Blank)) -> (q1, List(Blank, Alph(s)), List(Right, Right))
+    ))
+  }
 }

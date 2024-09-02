@@ -33,11 +33,7 @@ object TestTuringCompiler {
     val ast = miniscala.parser.Parser.parse(prog)
     val m = compile(ast, next)
     
-<<<<<<< Updated upstream
     printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, List(Alph(HASH))), m.init, List(toTape(right), Nil)), 100)
-=======
-    printRunConfiguration(m, MultiConfig(List(toTape(left).reverse, Nil), m.init, List(toTape(right), Nil)), 200)
->>>>>>> Stashed changes
   }
 
   def constants(): Unit = {
@@ -122,8 +118,6 @@ object TestTuringCompiler {
   }
 
   def valDecls(): Unit = {
-    simProgram("{ val x = 1; val y = 2; { val x = 3; x + y } + x }")
-
     testProgram("{ val x = 1; 1 }", "_1")
     testProgram("{ val x = 2; x }", "_11")
     testProgram("{ val x = 2; { val x = 4; x } + x }", "_111111")
@@ -131,6 +125,9 @@ object TestTuringCompiler {
   }
 
   def combinations(): Unit = {
+    simProgram("419 * 14")
+    // simProgram("{ val x = 5; val y = 4; x + { val x = 3; x + y } + y}")
+
     testProgram(
       """{ val x = 10;
          | val y = x * 2;

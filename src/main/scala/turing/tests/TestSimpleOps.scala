@@ -15,7 +15,7 @@ object TestSimpleOps {
     val machine = SimpleOps.equal(set, set.zip(alternate).toMap, next)
 
     for (i <- 1 to 10) {
-      val x = randomTape(Random.nextInt(100), setarr)
+      val x = randomTape(Random.nextInt(100) + 2, setarr)
       { // equal
         val right = Blank :: x ++ List(Blank) ++ x
         testMachine(machine, Nil, right, Nil, right, Accept)

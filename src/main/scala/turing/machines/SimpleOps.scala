@@ -149,6 +149,9 @@ object SimpleOps {
     TuringMachine(q0, symbols.foldLeft(table)((tt, symb) => tt + ((q1, Alph(symb)) -> (q1, Blank, Right))))
   }
 
+  def eraseRev[A](symbols: Set[A], special: A, next: () => Int): TuringMachine[Int, A] =
+    mirror(erase(symbols, special, next))
+
   def eraseN[A](n: Int, symbols: Set[A], special: A, next: () => Int): TuringMachine[Int, A] = 
     if (n == 0) 
       return accept(NonHalt(next()), Set()) 
@@ -158,7 +161,28 @@ object SimpleOps {
         .toList.flatten.take(2 * n - 1)
       sequence(goToBack ++ eraseAll)
     }
-  
+
+  // move to the given state, assuming we are on blank symbol
+  def transitionToState[A](state: State[Int], next: () => Int): TuringMachine[Int, A] = {
+    val List(q0) = initStates(1, next)
+    TuringMachine[Int, A](q0, Map(
+      (q0, Blank) -> (state, Blank, Stay)
+    ))
+  }
+
+  def deleteUntilSymbol[A](symbols: Set[A], stop: A, next: () => Int): TuringMachine[Int, A] = {
+    val List(q0) = initStates(1, next)
+    TuringMachine(q0, Map(
+      (q0, Blank) -> (q0, Blank, Right),
+      (q0, Alph(stop)) -> (Accept, Blank, Stay)
+    ) ++ symbols.map(s => 
+      (q0, Alph(s)) -> (q0, Blank, Right)
+    ))
+  }
+
+  def deleteUntilSymbolRev[A](symbols: Set[A], stop: A, next: () => Int): TuringMachine[Int, A] = {
+    mirror(deleteUntilSymbol(symbols, stop, next))
+  }
 
   def accept[A](init: NonHalt[Int], symbols: Set[A]): TuringMachine[Int, A] =
     TuringMachine(init, symbols.foldLeft[TransTable[Int, A]](Map())((table, symb) =>

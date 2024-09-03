@@ -16,7 +16,7 @@ object TuringCompiler {
   val SPECIAL: Char = 'A'
   val CODEZERO: Char = '&'
   val CODEONE: Char = '%'
-  val CODELENGTH: Int = 7
+  val CODELENGTH: Int = 5
 
   val VALIDNAMESYMBOLS: Set[Char] = ('a' to 'z').toSet
   val VALIDCODESYMBOLS: Set[Char] = Set(CODEONE, CODEZERO)
@@ -53,7 +53,7 @@ object TuringCompiler {
   }
   
 
-  def addFunction(functions: DeclaredFunctions, bodyMachine: MultiMachine[Int, Char]): String = {
+  private def addFunction(functions: DeclaredFunctions, bodyMachine: MultiMachine[Int, Char]): String = {
     val n = functions.map.size
     val bin = n.toBinaryString.map {
       case '0' => CODEZERO
@@ -101,24 +101,38 @@ object TuringCompiler {
       ControlFlow.sequence(compileImpl(exp, functions, next), onMainTape(Bool.not(TRUE, FALSE, next)))
 
     case LambdaExp(params, body) => 
-      val bodyMachine = compileImpl(body, functions, next)
+      val bodyMachine = {
+        val bodyWork = compileImpl(body, functions, next)
+        val callReturnCode = onMainTape(SimpleOps.transitionToState(functions.branchState, next))
+        ControlFlow.sequence(bodyWork, callReturnCode)
+      }
+
       val code = addFunction(functions, bodyMachine)
+
       TMManip.workOn(
         Functions.functionValue(params.map(p => p.x.toList), code.toList, VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS, HASH, COMMA, SEMICOLON, next),
         List(MAINTAPE, ENVTAPE), NUMTAPES)
     
     case CallExp(funexp, args) =>
-      val machines = compileImpl(funexp, functions, next) :: args.map(arg => compileImpl(arg, functions, next))
       val allsymbs = VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS + SEMICOLON + COMMA
+      
+      val machines = compileImpl(funexp, functions, next) :: args.map(arg => compileImpl(arg, functions, next))
+    
       val putParts = machines.map(m => List(m, onMainTape(SimpleOps.nextBlank(allsymbs, next)))).flatten.dropRight(1) // remove last nextblank
       val goBack = (1 to machines.size - 1).map(_ => onMainTape(SimpleOps.prevBlank(allsymbs, next)))
+      
       val preparefunccall = Functions.prepareFunctionCall(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, VALIDCODESYMBOLS, COMMA, SEMICOLON, HASH, next)
-      val call = {
-        val q0 = NonHalt(next()) // TODO BAD BAD BAD
-        TMManip.workOn(TuringMachine[Int, Char](q0, Map((q0, Blank) -> (functions.branchState, Blank, Stay))), CALLTAPE, NUMTAPES)
-      }
+      val call = onMainTape(SimpleOps.transitionToState(functions.branchState, next))
+      val afterReturned = Functions.cleanAfterFunctionCall(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, VALIDCODESYMBOLS, HASH, next)
+
+      val returnCode = addFunction(functions, afterReturned)
+      val putReturnCode = TMManip.workOn(ControlFlow.sequence(
+        SimpleOps.write(returnCode.toList, next),
+        SimpleOps.nextBlank(VALIDCODESYMBOLS, next)
+      ), CALLTAPE, NUMTAPES)
+
       ControlFlow.sequence(
-        putParts ++ goBack ++ List(preparefunccall, call)
+        putParts ++ goBack ++ List(putReturnCode, preparefunccall, call)
       )
 
     case _ => ???
@@ -128,13 +142,21 @@ object TuringCompiler {
     val branches = functions.map.map {
       case (code, machine) => Functions.Branch(code.toList, machine.init)
     }.toList
+
     val brancher = ControlFlow.insertMachines(
       TMManip.workOn(Functions.brancher(branches, next), CALLTAPE, NUMTAPES), 
       functions.map.map {
-        case (code, machine) => machine -> ControlFlow.MachineConnection(machine.init, Accept, Reject)
+        case (code, machine) => 
+          machine -> ControlFlow.MachineConnection(machine.init, Accept, Reject)
       }.toList
     )
-    ControlFlow.insertMachine(m, brancher, functions.branchState, Accept, Reject)
+
+    val result = ControlFlow.insertMachine(m, brancher, functions.branchState, Accept, Reject)
+    MultiMachine(result.init, result.transitions.map{
+      case (q1, ss1) -> (functions.branchState, ss2, ds) => 
+        (q1, ss1) -> (brancher.init, ss2, ds)
+      case t => t
+    })
   }
 
   def compile(e: Exp, next: () => Int): MultiMachine[Int, Char] = {

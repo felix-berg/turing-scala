@@ -1,5 +1,7 @@
 package turing
 
+import Console.{ UNDERLINED, RESET, println }
+
 object TuringMachine {
   sealed abstract class Direction
   case object Left extends Direction
@@ -47,6 +49,11 @@ object TuringMachine {
     }
   }
 
+  def tapeAlphToChar[A](a: TapeAlph[A]): String = a match {
+    case Blank => "Δ"
+    case Alph(c) => c.toString
+  }
+
   case class MultiConfig[Q, A](lefts: List[List[TapeAlph[A]]], state: State[Q], rights: List[List[TapeAlph[A]]]) {
     override def toString: String =
       (state match {
@@ -54,14 +61,26 @@ object TuringMachine {
         case Accept => "ha"
         case Reject => "hr"
       }) + ":\n" + lefts.zip(rights).map {
-        case (l, r) => "(" + l.reverse.map {
-          case Blank => "Δ"
-          case Alph(x) => x.toString
-        }.mkString("") + ", " + r.map {
-          case Blank => "Δ"
-          case Alph(x) => x.toString
-        }.mkString("") + ")\n"
+        case (l, r) => 
+          l.reverse.map(tapeAlphToChar).mkString + 
+          (if (r.isEmpty) List(Blank) else r).map(tapeAlphToChar).mkString + '\n' +
+          l.map(_ => ' ').mkString("") + "^\n" 
       }.mkString("")
+
+    def debugPrint: Unit = 
+      println(state match {
+        case NonHalt(q) => q.toString
+        case Accept => "ha"
+        case Reject => "hr"
+      })
+
+      for ((l, r) <- lefts.zip(rights)) {
+        print(l.reverse.map(tapeAlphToChar).mkString)
+        if (r.nonEmpty) {
+          Console.print(s"$UNDERLINED${tapeAlphToChar(r.head)}$RESET")
+          println(r.tail.map(tapeAlphToChar).mkString)
+        } else println("Δ")
+      }
 
     def collapse: MultiConfig[Q, A] = MultiConfig(lefts, state, rights.map(collapseTape))
   }

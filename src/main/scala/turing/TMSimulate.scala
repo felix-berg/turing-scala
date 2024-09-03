@@ -30,7 +30,7 @@ object TMSimulate {
 
   @tailrec
   def printRunConfiguration[Q, A](m: MultiMachine[Q, A], conf: MultiConfig[Q, A], delayms: Int): MultiConfig[Q, A] = {
-    println(conf)
+    conf.debugPrint
     Thread.sleep(delayms)
 
     if (conf.state == Accept || conf.state == Reject) conf

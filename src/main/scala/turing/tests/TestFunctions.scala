@@ -114,6 +114,7 @@ object TestFunctions {
         val codetape = Blank :: branch.code.map(c => Alph(c)) 
         var conf = Configuration(codetape.reverse, machine.init, Nil)
         while (conf.state != branch.state && conf.state != Reject && conf.state != Accept) {
+          println(conf)
           conf = step(machine, conf)
         }
         assert(conf.state == branch.state, s"unexpected halt with $conf")
@@ -128,12 +129,11 @@ object TestFunctions {
     }
     { // some not-equal-length branches
       val branches: List[Functions.Branch[Char]] = List(
-        "01", 
         "00",
         "1001", 
-        "1000",
-        "1101",
-        "1110101",
+        "0011",
+        "1011",
+        "1010111"        
       ).map(s => Functions.Branch(s.toList, NonHalt(next())))
       testBranches(branches)
     }
@@ -303,9 +303,9 @@ object TestFunctions {
       val left = List(Nil, env.reverse, Nil)
       val right = List(value ++ arguments, Nil, Nil)
 
-      val venv = Blank :: makeEnvironment(xs, vs).drop(1) // remove #
-      val penv = Blank :: makeEnvironment(ps, as).drop(1) 
-      val newenv = env ++ venv ++ (if(k == 0) Nil else penv)
+      val venv = makeEnvironment(xs, vs)
+      val penv = if (k == 0) Nil else Blank :: makeEnvironment(ps, as).drop(1) // remove #
+      val newenv = env ++ List(Blank) ++ venv ++ penv
       val expleft = List(Nil, newenv.reverse, (Blank :: code.map(c => Alph(c))).reverse)
       val expright = List(Nil, Nil, Nil)
 

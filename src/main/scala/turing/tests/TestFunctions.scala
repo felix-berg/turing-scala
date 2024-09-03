@@ -27,13 +27,13 @@ object TestFunctions {
       val n = Random.between(1, 10)
       val ns = (1 to n).map(_ => randomTape(Random.between(1, 6), ('a' to 'z').toArray)).toList
       val vs = (1 to n).map(_ => randomTape(Random.between(1, 10), Array('1', 'T', 'F'))).toList
-      val env = Alph('#') :: ns.zip(vs).map{ case (s, v) => s ++ List(Blank) ++ v ++ List(Blank) }.flatten.dropRight(1)
+      val env = Alph('#') :: ns.zip(vs).map{ case (s, v) => List(Blank) ++ s ++ List(Blank) ++ v }.flatten
 
-      val thing = env.map {
+      val thing = Blank :: env.map {
         case Blank => Alph(',')
         case Alph('#') => Blank
         case c => c
-      }
+      }.drop(2)
       
       val left = List(Nil, env.reverse)
       val right = List(Nil, Nil)
@@ -79,7 +79,7 @@ object TestFunctions {
     Alph('#') :: xs.zip(vs).map((x, v) => x ++ List(Blank) ++ v ++ List(Blank)).flatten.dropRight(if (n == 0) 0 else 1)
   }
 
-  def functionValue(): Unit = {
+  private def functionValue(): Unit = {
     def f(params: List[List[Char]], code: List[Char], envMin: Int, envMax: Int): Unit = {
       val machine = Functions.functionValue(params, code, ('a' to 'z').toSet ++ Set('1', 'T', 'F'), '#', ',', ';', newNext())
 
@@ -114,7 +114,6 @@ object TestFunctions {
         val codetape = Blank :: branch.code.map(c => Alph(c)) 
         var conf = Configuration(codetape.reverse, machine.init, Nil)
         while (conf.state != branch.state && conf.state != Reject && conf.state != Accept) {
-          println(conf)
           conf = step(machine, conf)
         }
         assert(conf.state == branch.state, s"unexpected halt with $conf")

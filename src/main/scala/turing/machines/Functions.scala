@@ -34,23 +34,25 @@ object Functions {
     /**
      * input:  [Δ]
      *          ^
-     *         [#x1Δv1Δ...ΔxnΔvnΔ]
-     *                          ^
+     *         [#Δx1Δv1Δ...ΔxnΔvnΔ]
+     *                           ^
      * output: [Δx1,v1,...,xn,vnΔ] (where `params` = p1, ..., pk, c = `code`)
      *                          ^
-     *         [#x1Δv1Δ...ΔxnΔvnΔ]
-     *                          ^
+     *         [#Δx1Δv1Δ...ΔxnΔvnΔ]
+     *                           ^
      */
     def copyEnv[A](symbols: Set[A], comma: A, hash: A, next: () => Int): MultiMachine[Int, A] = {
       val (cm, hs) = (Alph(comma), Alph(hash))
 
       val prepareEnv = TMManip.workOn({
-        val List(q0, q1, q2, qpb) = initStates(4, next)
+        val List(q0, q1, q2, q3, qpb) = initStates(5, next)
         val pb = SimpleOps.prevBlankWithStop(symbols + comma, hash, next)
         val parent = TuringMachine(q0, Map(
           (q0, Blank) -> (qpb, Blank, Stay),
           (q1, Blank) -> (qpb, cm, Stay),
-          (q2, hs) -> (Accept, Blank, Stay)
+          (q2, hs) -> (q3, hs, Right),
+          (q3, cm) -> (Accept, Blank, Stay), // remove first comma 
+          (q3, Blank) -> (Accept, Blank, Stay)
         ))
         ControlFlow.insertMachine(parent, pb, qpb, q1, q2)
       }, 1, 2)
@@ -59,22 +61,28 @@ object Functions {
         MultiTapeOps.copyDown(symbols + comma, next),
         List(1, 0), 2 // invert direction
       )
+      val cleanEnvIfNonEmpty = TMManip.workOn({
+        val cleanEnv = {
+          val List(q0, q1, qnb) = initStates(3, next)
+          val nb = SimpleOps.nextBlankWithStop(symbols + hash, comma, next)
+          val parent = TuringMachine(q0, Map(
+            (q0, Blank) -> (qnb, Blank, Stay),
+            (q1, cm) -> (qnb, Blank, Stay)
+          ))
 
-      val cleanEnv = TMManip.workOn({
-        val List(q0, q1, qnb) = initStates(3, next)
-        val nb = SimpleOps.nextBlankWithStop(symbols + hash, comma, next)
-        val parent = TuringMachine(q0, Map(
-          (q0, Blank) -> (qnb, hs, Stay),
-          (q1, cm) -> (qnb, Blank, Stay)
-        ))
-        ControlFlow.insertMachine(parent, nb, qnb, Accept, q1)
+          ControlFlow.insertMachine(parent, nb, qnb, Accept, q1)
+        }
+
+        ControlFlow.ifThenElse(SimpleOps.isEmpty(symbols, next), 
+          SimpleOps.transitionToState(Accept, next),
+          cleanEnv)
       }, 1, 2)
 
       val forward = TMManip.workOn(
           SimpleOps.nextBlank(symbols + comma, next),
         0, 2)
 
-      ControlFlow.sequence(List(prepareEnv, copyToMain, cleanEnv, forward))
+      ControlFlow.sequence(List(prepareEnv, copyToMain, cleanEnvIfNonEmpty, forward))
     }
     /**
      * input:  ...sx1fx2f...fxnΔ (where xi ∈ (`symbols` + Blank)*, s = `stop`, f = `from`)
@@ -334,7 +342,7 @@ object Functions {
    *          ^
    *         [Δ#x1Δv1Δ...ΔxnΔvnΔ]
    *                          ^
-   *         [Δ]
+  *         [Δ]
    *          ^
    * output: [Δvalue...]
    *          ^

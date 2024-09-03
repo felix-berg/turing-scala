@@ -170,6 +170,23 @@ object SimpleOps {
     ))
   }
 
+  /**
+   * input:  Δx1...xn (where xi ∈ `symbols` for i <= n)
+   *         ^
+   * output: Δy1...yn (where yi = `mapping`(xi) for i <= n)
+   *         ^
+   */
+  def obfuscate[A](symbols: Set[A], mapping: A => A, next: () => Int): TuringMachine[Int, A] = {
+    val nb = nextBlank(symbols, next)
+    val pb = prevBlank(symbols.map(mapping), next)
+    val thing = TuringMachine(nb.init, nb.transitions.map {
+      case (q1, Alph(s)) -> (q2, Alph(s1), d) if s == s1 => 
+        (q1, Alph(s)) -> (q2, Alph(mapping(s)), d)
+      case t => t
+    })
+    sequence(thing, pb)
+  }
+
   def deleteUntilSymbol[A](symbols: Set[A], stop: A, next: () => Int): TuringMachine[Int, A] = {
     val List(q0) = initStates(1, next)
     TuringMachine(q0, Map(

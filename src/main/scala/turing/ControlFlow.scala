@@ -32,6 +32,17 @@ object ControlFlow {
   def sequence[Q, A](ms: List[MultiMachine[Q, A]]): MultiMachine[Q, A] =
     ms.reduce((a, b) => sequence(a, b))
 
+  def ifThenElse[Q, A](cond: TuringMachine[Q, A], thn: TuringMachine[Q, A], els: TuringMachine[Q, A]): TuringMachine[Q, A] = {
+    require(combinable(cond, thn) && combinable(cond, els) && combinable(thn, els))
+
+    TuringMachine(cond.init, cond.transitions.map {
+      case (q, s1) -> (Accept, s2, dir) => (q, s1) -> (thn.init, s2, dir)
+      case (q, s1) -> (Reject, s2, dir) => (q, s1) -> (els.init, s2, dir)
+      case t => t
+    } ++ thn.transitions ++ els.transitions)
+  }
+
+
   def ifThenElse[Q, A](cond: MultiMachine[Q, A], thn: MultiMachine[Q, A], els: MultiMachine[Q, A]): MultiMachine[Q, A] = {
     require(combinable(cond, thn) && combinable(cond, els) && combinable(thn, els))
 

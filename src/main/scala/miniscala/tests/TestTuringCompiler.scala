@@ -38,11 +38,11 @@ object TestTuringCompiler {
   }
 
   def constants(): Unit = {
-    testProgram("1", "_1")
-    testProgram("2", "_11")
+    testProgram("1", s"_$ONE")
+    testProgram("2", s"_$ONE$ONE")
     testProgram("11", "_" + unaryString(11))
-    testProgram("true", "_T")
-    testProgram("false", "_F")
+    testProgram("true", s"_$TRUE")
+    testProgram("false", s"_$FALSE")
   }
 
   def addition(): Unit = {
@@ -136,8 +136,10 @@ object TestTuringCompiler {
   }
 
   def lambdas(): Unit = {
-    val zeroCode = (1 to CODELENGTH).map(_ => CODEZERO).mkString
-    testProgram("(x, y) => 1 + 2", s"_$zeroCode;;x,y")
-    simProgram("((x, y) => x + y)(1, 2)")
+    val zeroCode = (1 to CODELENGTH).map(_ => OBFUSCATEDCODEZERO).mkString
+    testProgram("(x, y) => 1 + 2", s"_$zeroCode--X+Y")
+    testProgram("((x, y) => x + y)(1, 2)", "_111")
+    testProgram("{ val f = (x, y) => 1 + 2; f }", s"_$zeroCode--X+Y")
+    simProgram("{ val f = (x, y) => x + y; { val g = (y, z) => f(y, z * 2); g(5, 2) } }")
   }
 }

@@ -79,7 +79,7 @@ object TuringMachine {
         if (r.nonEmpty) {
           Console.print(s"$UNDERLINED${tapeAlphToChar(r.head)}$RESET")
           println(r.tail.map(tapeAlphToChar).mkString)
-        } else println("Δ")
+        } else Console.println(s"${UNDERLINED}Δ$RESET")
       }
 
     def collapse: MultiConfig[Q, A] = MultiConfig(lefts, state, rights.map(collapseTape))

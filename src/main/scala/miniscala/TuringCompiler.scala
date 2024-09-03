@@ -7,20 +7,33 @@ object TuringCompiler {
   import turing.{ TMManip, TMUtil, ControlFlow }
   import Ast._
 
-  val ONE: Char = '1'
-  val FALSE: Char = 'F'
-  val TRUE: Char = 'T'
   val HASH: Char = '#'
+  val SPECIAL: Char = 'A'
   val COMMA: Char = ','
   val SEMICOLON: Char = ';'
-  val SPECIAL: Char = 'A'
+
+  val ONE: Char = '1'
+  val FALSE: Char = '?'
+  val TRUE: Char = '^'
+
+  val OBFUSCATEDCOMMA: Char = '+'
+  val OBFUSCATEDSEMICOLON: Char = '-'
+  val OBFUSCATEDCODEZERO: Char = '*'
+  val OBFUSCATEDCODEONE: Char = '/'
+  val OBFUSCATEDFUNCTIONSYMBOLS: Set[Char] = Set(OBFUSCATEDCODEONE, OBFUSCATEDCODEZERO, OBFUSCATEDSEMICOLON, OBFUSCATEDCOMMA) 
+    ++ ('A' to 'Z') // note: A-Z are reserved for obscured variable names within function values
+
   val CODEZERO: Char = '&'
   val CODEONE: Char = '%'
   val CODELENGTH: Int = 5
 
   val VALIDNAMESYMBOLS: Set[Char] = ('a' to 'z').toSet
   val VALIDCODESYMBOLS: Set[Char] = Set(CODEONE, CODEZERO)
-  val VALIDVALUESYMBOLS: Set[Char] = Set(ONE, FALSE, TRUE)
+  val VALIDVALUESYMBOLS: Set[Char] = Set(ONE, FALSE, TRUE) ++ OBFUSCATEDFUNCTIONSYMBOLS
+
+  assert(VALIDNAMESYMBOLS.intersect(VALIDVALUESYMBOLS).isEmpty)
+  assert(VALIDNAMESYMBOLS.intersect(VALIDCODESYMBOLS).isEmpty)
+  assert(VALIDVALUESYMBOLS.intersect(VALIDCODESYMBOLS).isEmpty)
 
   val MAINTAPE: Int = 0
   val ENVTAPE: Int = 1
@@ -65,6 +78,30 @@ object TuringCompiler {
     bin
   }
 
+  private def unobfuscateFunctionSymbol(c: Char): Char = {
+    assert(OBFUSCATEDFUNCTIONSYMBOLS.contains(c))
+    c match {
+      case c if c >= 'A' && c <= 'Z' => (c - ('A' - 'a')).toChar
+      case OBFUSCATEDCOMMA => COMMA
+      case OBFUSCATEDSEMICOLON => SEMICOLON
+      case OBFUSCATEDCODEONE => CODEONE
+      case OBFUSCATEDCODEZERO => CODEZERO
+      case _ => ???
+    }
+  }
+
+  private def obfuscateFunctionSymbol(c: Char): Char = {
+    c match {
+      case c if c >= 'a' && c <= 'z' => (c + ('A' - 'a')).toChar
+      case c if VALIDVALUESYMBOLS.contains(c) => c
+      case COMMA => OBFUSCATEDCOMMA
+      case SEMICOLON => OBFUSCATEDSEMICOLON
+      case CODEONE => OBFUSCATEDCODEONE
+      case CODEZERO => OBFUSCATEDCODEZERO
+      case _ => ???
+    }
+  }
+
   def compileImpl(e: Exp, functions: DeclaredFunctions, next: () => Int): MultiMachine[Int, Char] = e match {
     case IntLit(c) => 
       onMainTape(SimpleOps.nSymbols(ONE, c, next))
@@ -101,6 +138,7 @@ object TuringCompiler {
       ControlFlow.sequence(compileImpl(exp, functions, next), onMainTape(Bool.not(TRUE, FALSE, next)))
 
     case LambdaExp(params, body) => 
+      assert(params.forall(p => p.x.toLowerCase == p.x))
       val bodyMachine = {
         val bodyWork = compileImpl(body, functions, next)
         val callReturnCode = onMainTape(SimpleOps.transitionToState(functions.branchState, next))
@@ -109,17 +147,33 @@ object TuringCompiler {
 
       val code = addFunction(functions, bodyMachine)
 
-      TMManip.workOn(
-        Functions.functionValue(params.map(p => p.x.toList), code.toList, VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS, HASH, COMMA, SEMICOLON, next),
-        List(MAINTAPE, ENVTAPE), NUMTAPES)
+      val putFunctionValue = TMManip.workOn(
+        Functions.functionValue(
+          params.map(p => p.x.toList), 
+          code.toList, 
+          VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS, 
+          HASH, COMMA, SEMICOLON, next
+        ), List(MAINTAPE, ENVTAPE), NUMTAPES)
+      val obfuscateFunctionValue = onMainTape(
+        SimpleOps.obfuscate(
+          VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS +
+            COMMA + SEMICOLON, obfuscateFunctionSymbol, next)
+      )
+
+      ControlFlow.sequence(putFunctionValue, obfuscateFunctionValue)
     
     case CallExp(funexp, args) =>
       val allsymbs = VALIDNAMESYMBOLS ++ VALIDVALUESYMBOLS ++ VALIDCODESYMBOLS + SEMICOLON + COMMA
       
-      val machines = compileImpl(funexp, functions, next) :: args.map(arg => compileImpl(arg, functions, next))
-    
-      val putParts = machines.map(m => List(m, onMainTape(SimpleOps.nextBlank(allsymbs, next)))).flatten.dropRight(1) // remove last nextblank
-      val goBack = (1 to machines.size - 1).map(_ => onMainTape(SimpleOps.prevBlank(allsymbs, next)))
+      val putFunctionValue = ControlFlow.sequence(List(
+        compileImpl(funexp, functions, next), 
+        onMainTape(SimpleOps.obfuscate(OBFUSCATEDFUNCTIONSYMBOLS, unobfuscateFunctionSymbol, next)),
+        onMainTape(SimpleOps.nextBlank(allsymbs, next))
+      ))
+
+      val machines = args.map(arg => compileImpl(arg, functions, next))
+      val putArgs = machines.map(m => List(m, onMainTape(SimpleOps.nextBlank(allsymbs, next)))).flatten.dropRight(if (machines.nonEmpty) 1 else 0) // remove last nextblank
+      val goBack = (1 to machines.size).map(_ => onMainTape(SimpleOps.prevBlank(allsymbs, next)))
       
       val preparefunccall = Functions.prepareFunctionCall(VALIDNAMESYMBOLS, VALIDVALUESYMBOLS, VALIDCODESYMBOLS, COMMA, SEMICOLON, HASH, next)
       val call = onMainTape(SimpleOps.transitionToState(functions.branchState, next))
@@ -132,7 +186,7 @@ object TuringCompiler {
       ), CALLTAPE, NUMTAPES)
 
       ControlFlow.sequence(
-        putParts ++ goBack ++ List(putReturnCode, preparefunccall, call)
+        putFunctionValue :: putArgs ++ goBack ++ List(putReturnCode, preparefunccall, call)
       )
 
     case _ => ???
